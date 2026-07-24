@@ -3,14 +3,14 @@ import pandas as pd
 import numpy as np
 import datetime
 
-# Page configuration
+# Configuration
 st.set_page_config(
-    page_title="Gestión Comercial IEP - Asset Management",
+    page_title="Sistemática Comercial IEP - Asset Management",
     page_icon="📊",
     layout="wide"
 )
 
-# Custom CSS styling
+# Styling
 st.markdown("""
 <style>
     .main-header {
@@ -19,17 +19,16 @@ st.markdown("""
         color: #1F497D;
         margin-bottom: 20px;
     }
-    .metric-card {
+    .stMetric {
         background-color: #F8FAFC;
-        border-left: 5px solid #1F497D;
-        padding: 15px;
-        border-radius: 5px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        padding: 12px;
+        border-radius: 6px;
+        border-left: 4px solid #1F497D;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Lista de Directores Actualizada
+# Directores
 LISTA_DIRECTORES = [
     "Claudia Céspedez",
     "Claudia Lizarralde",
@@ -40,17 +39,10 @@ LISTA_DIRECTORES = [
     "Nicolás Quintero"
 ]
 
-# Initialize Session State Data with actual team members
+# Inicializar Base de Datos vacía (Comenzar de cero)
 if "records" not in st.session_state:
-    st.session_state.records = pd.DataFrame([
-        {"Fecha": "2026-07-01", "Director": "Claudia Céspedez", "Tipo Cliente": "Nuevo (Captación)", "Canal": "Presencial", "Cierre": "Sí"},
-        {"Fecha": "2026-07-03", "Director": "Claudia Céspedez", "Tipo Cliente": "Nuevo (Captación)", "Canal": "Presencial", "Cierre": "No"},
-        {"Fecha": "2026-07-05", "Director": "Claudia Lizarralde", "Tipo Cliente": "Existente (Mantenimiento)", "Canal": "Virtual", "Cierre": "No"},
-        {"Fecha": "2026-07-10", "Director": "Gloria Lamus", "Tipo Cliente": "Nuevo (Captación)", "Canal": "Virtual", "Cierre": "Sí"},
-        {"Fecha": "2026-07-02", "Director": "Karen Cortés", "Tipo Cliente": "Existente (Mantenimiento)", "Canal": "Presencial", "Cierre": "Sí"},
-        {"Fecha": "2026-07-04", "Director": "Laura Gómez", "Tipo Cliente": "Existente (Mantenimiento)", "Canal": "Presencial", "Cierre": "No"},
-        {"Fecha": "2026-07-08", "Director": "María Camila León", "Tipo Cliente": "Nuevo (Captación)", "Canal": "Presencial", "Cierre": "Sí"},
-        {"Fecha": "2026-07-12", "Director": "Nicolás Quintero", "Tipo Cliente": "Existente (Mantenimiento)", "Canal": "Virtual", "Cierre": "No"},
+    st.session_state.records = pd.DataFrame(columns=[
+        "Fecha", "Mes_Año", "Director", "Tipo Cliente", "Canal", "Cierre"
     ])
 
 if "config" not in st.session_state:
@@ -63,25 +55,22 @@ if "config" not in st.session_state:
         "iep_objetivo": 0.15
     }
 
-# App Title & Navigation
-st.title("📊 Portal de Control Comercial IEP - Asset Management")
-st.caption("Plataforma en línea para registro individual de gestores y consola de control del Líder Comercial.")
+# Capturar parámetros de la URL para separar accesos (Links)
+query_params = st.query_params
+mode = query_params.get("modo", "comercial") # 'comercial' o 'lider'
 
-role = st.sidebar.radio("📌 Selecciona tu Vista:", ["👤 Registro Comercial (Director)", "📈 Dashboard Global (Líder / Director General)", "⚙️ Configuración del Modelo"])
-
-# Helper function to compute metrics
+# Función de cálculo de métricas por mes
 def compute_metrics(df, config):
     if df.empty:
         return pd.DataFrame()
     
-    # Calculate points per row
-    df["Puntos_Canal"] = df["Canal"].map({"Presencial": config["p_presencial"], "Virtual": config["p_virtual"]})
-    df["Puntos_Tipo"] = df["Tipo Cliente"].map({"Nuevo (Captación)": config["p_captacion"], "Existente (Mantenimiento)": config["p_mantenimiento"]})
-    df["Puntos_Esfuerzo"] = df["Puntos_Canal"] * df["Puntos_Tipo"]
-    df["Es_Cierre"] = df["Cierre"].apply(lambda x: 1 if x == "Sí" else 0)
+    df_calc = df.copy()
+    df_calc["Puntos_Canal"] = df_calc["Canal"].map({"Presencial": config["p_presencial"], "Virtual": config["p_virtual"]})
+    df_calc["Puntos_Tipo"] = df_calc["Tipo Cliente"].map({"Nuevo (Captación)": config["p_captacion"], "Existente (Mantenimiento)": config["p_mantenimiento"]})
+    df_calc["Puntos_Esfuerzo"] = df_calc["Puntos_Canal"] * df_calc["Puntos_Tipo"]
+    df_calc["Es_Cierre"] = df_calc["Cierre"].apply(lambda x: 1 if x == "Sí" else 0)
 
-    # Group by Director
-    summary = df.groupby("Director").agg(
+    summary = df_calc.groupby("Director").agg(
         Visitas_Totales=("Fecha", "count"),
         Visitas_Presenciales=("Canal", lambda x: (x == "Presencial").sum()),
         Visitas_Virtuales=("Canal", lambda x: (x == "Virtual").sum()),
@@ -98,13 +87,19 @@ def compute_metrics(df, config):
 
     return summary
 
-# -------------------------------------------------------------
-# VISTA 1: REGISTRO COMERCIAL (DIRECTOR)
-# -------------------------------------------------------------
-if role == "👤 Registro Comercial (Director)":
+# =============================================================
+# MODO 1: PORTAL COMERCIAL (Para Directores)
+# URL: ?modo=comercial (o sin parámetros)
+# =============================================================
+if mode == "comercial":
+    st.title("👤 Portal Comercial - Registro de Visitas")
+    st.caption("Herramienta de autocontrol comercial para Directores de Asset Management.")
+
+    col_dir, col_mes_filter = st.columns([2, 1])
+    with col_dir:
+        selected_director = st.selectbox("Selecciona tu Nombre:", LISTA_DIRECTORES)
+
     st.subheader("📝 Registrar Nueva Visita Comercial")
-    
-    selected_director = st.selectbox("Selecciona tu Nombre:", LISTA_DIRECTORES)
     
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -117,8 +112,10 @@ if role == "👤 Registro Comercial (Director)":
         cierre = st.selectbox("¿Ocurrió Cierre / Venta?", ["No", "Sí"])
 
     if st.button("💾 Guardar Visita"):
+        mes_str = fecha_visita.strftime("%Y-%m") # Guardar periodo Año-Mes
         new_row = pd.DataFrame([{
             "Fecha": str(fecha_visita),
+            "Mes_Año": mes_str,
             "Director": selected_director,
             "Tipo Cliente": tipo_cliente,
             "Canal": canal,
@@ -128,72 +125,85 @@ if role == "👤 Registro Comercial (Director)":
         st.success("¡Visita registrada exitosamente!")
 
     st.divider()
-    st.subheader(f"📌 Resumen Mensual Individual - {selected_director}")
     
-    # Filter data for selected director
-    user_records = st.session_state.records[st.session_state.records["Director"] == selected_director]
-    user_summary = compute_metrics(user_records, st.session_state.config)
+    # Filtro Mensual para el Director
+    st.subheader(f"📌 Resumen Individual - {selected_director}")
     
-    if not user_summary.empty:
-        row = user_summary.iloc[0]
-        m1, m2, m3, m4, m5 = st.columns(5)
-        m1.metric("Visitas Realizadas", int(row["Visitas_Totales"]))
-        m2.metric("Puntos de Esfuerzo", f"{row['Puntos_Esfuerzo']:.1f} / {st.session_state.config['umbral_puntos']}")
-        m3.metric("Factor Actividad", f"{row['Factor_Actividad']*100:.0f}%")
-        m4.metric("Tasa Conversión", f"{row['Tasa_Conversion']*100:.1f}%")
-        m5.metric("IEP Comercial", f"{row['IEP']*100:.1f}%", delta=row["Estatus"])
+    user_records_all = st.session_state.records[st.session_state.records["Director"] == selected_director]
+    
+    if not user_records_all.empty:
+        meses_disponibles = sorted(user_records_all["Mes_Año"].unique(), reverse=True)
+        selected_mes = st.selectbox("📅 Selecciona el Mes a consultar:", meses_disponibles, key="mes_user")
+        
+        user_records_month = user_records_all[user_records_all["Mes_Año"] == selected_mes]
+        user_summary = compute_metrics(user_records_month, st.session_state.config)
+        
+        if not user_summary.empty:
+            row = user_summary.iloc[0]
+            m1, m2, m3, m4, m5 = st.columns(5)
+            m1.metric("Visitas Realizadas", int(row["Visitas_Totales"]))
+            m2.metric("Puntos de Esfuerzo", f"{row['Puntos_Esfuerzo']:.1f} / {st.session_state.config['umbral_puntos']}")
+            m3.metric("Factor Actividad", f"{row['Factor_Actividad']*100:.0f}%")
+            m4.metric("Tasa Conversión", f"{row['Tasa_Conversion']*100:.1f}%")
+            m5.metric("IEP Comercial", f"{row['IEP']*100:.1f}%", delta=row["Estatus"])
+        
+        st.caption(f"Detalle de visitas registradas en {selected_mes}:")
+        st.dataframe(user_records_month[["Fecha", "Tipo Cliente", "Canal", "Cierre"]], use_container_width=True)
     else:
-        st.info("Aún no tienes visitas registradas este mes.")
+        st.info("Aún no tienes visitas registradas. Comienza guardando tu primera visita arriba.")
 
-    st.caption("Detalle de tus visitas registradas:")
-    st.dataframe(user_records, use_container_width=True)
+# =============================================================
+# MODO 2: CONSOLA LÍDER COMERCIAL
+# URL: ?modo=lider
+# =============================================================
+elif mode == "lider":
+    st.title("👑 Consola de Liderazgo Comercial - Asset Management")
+    st.caption("Consolidador de rendimiento global y calibración del modelo IEP.")
 
-# -------------------------------------------------------------
-# VISTA 2: DASHBOARD GLOBAL (LÍDER)
-# -------------------------------------------------------------
-elif role == "📈 Dashboard Global (Líder / Director General)":
-    st.subheader("👑 Consolidador y Seguimiento del Equipo Comercial")
-    
-    global_summary = compute_metrics(st.session_state.records, st.session_state.config)
-    
-    if not global_summary.empty:
-        col_a, col_b, col_c, col_d = st.columns(4)
-        col_a.metric("Total Visitas Equipo", int(global_summary["Visitas_Totales"].sum()))
-        col_b.metric("Puntos Promedio Esfuerzo", f"{global_summary['Puntos_Esfuerzo'].mean():.1f}")
-        col_c.metric("IEP Promedio Equipo", f"{global_summary['IEP'].mean()*100:.1f}%")
-        col_d.metric("Cierres Totales Mes", int(global_summary["Cierres"].sum()))
-        
-        st.divider()
-        st.subheader("📋 Tabla de Posiciones y Rendimiento Comercial (IEP)")
-        
-        display_df = global_summary[[
-            "Director", "Visitas_Totales", "Visitas_Presenciales", "Visitas_Virtuales",
-            "Visitas_Nuevos", "Visitas_Existentes", "Puntos_Esfuerzo", "Factor_Actividad",
-            "Cierres", "Tasa_Conversion", "IEP", "Estatus"
-        ]].copy()
-        
-        display_df["Factor_Actividad"] = (display_df["Factor_Actividad"] * 100).round(1).astype(str) + "%"
-        display_df["Tasa_Conversion"] = (display_df["Tasa_Conversion"] * 100).round(1).astype(str) + "%"
-        display_df["IEP"] = (display_df["IEP"] * 100).round(1).astype(str) + "%"
-        
-        st.dataframe(display_df, use_container_width=True)
-    else:
-        st.warning("No hay registros en la base de datos.")
+    tab1, tab2 = st.tabs(["📊 Dashboard de Rendimiento Global", "⚙️ Configuración de Parámetros"])
 
-# -------------------------------------------------------------
-# VISTA 3: CONFIGURACIÓN
-# -------------------------------------------------------------
-elif role == "⚙️ Configuración del Modelo":
-    st.subheader("⚙️ Parámetros y Reglas del Modelo Comercial")
-    
-    c1, c2 = st.columns(2)
-    with c1:
-        st.session_state.config["p_presencial"] = st.number_input("Puntos Visita Presencial", value=st.session_state.config["p_presencial"])
-        st.session_state.config["p_virtual"] = st.number_input("Puntos Visita Virtual", value=st.session_state.config["p_virtual"])
-        st.session_state.config["umbral_puntos"] = st.number_input("Umbral Mínimo Puntos (Esfuerzo)", value=st.session_state.config["umbral_puntos"])
-    with c2:
-        st.session_state.config["p_captacion"] = st.number_input("Multiplicador Cliente Nuevo", value=st.session_state.config["p_captacion"])
-        st.session_state.config["p_mantenimiento"] = st.number_input("Multiplicador Cliente Existente", value=st.session_state.config["p_mantenimiento"])
-        st.session_state.config["iep_objetivo"] = st.number_input("IEP Objetivo Mínimo (%)", value=st.session_state.config["iep_objetivo"] * 100) / 100.0
+    with tab1:
+        if not st.session_state.records.empty:
+            meses_globales = sorted(st.session_state.records["Mes_Año"].unique(), reverse=True)
+            col_mes, col_spacer = st.columns([1, 2])
+            with col_mes:
+                mes_global = st.selectbox("📅 Selecciona el Mes a Evaluar:", meses_globales)
+            
+            records_month = st.session_state.records[st.session_state.records["Mes_Año"] == mes_global]
+            global_summary = compute_metrics(records_month, st.session_state.config)
 
-    st.success("Configuración actualizada correctamente.")
+            col_a, col_b, col_c, col_d = st.columns(4)
+            col_a.metric("Total Visitas Equipo", int(global_summary["Visitas_Totales"].sum()))
+            col_b.metric("Puntos Promedio Esfuerzo", f"{global_summary['Puntos_Esfuerzo'].mean():.1f}")
+            col_c.metric("IEP Promedio Equipo", f"{global_summary['IEP'].mean()*100:.1f}%")
+            col_d.metric("Cierres Totales Mes", int(global_summary["Cierres"].sum()))
+
+            st.divider()
+            st.subheader(f"📋 Rendimiento del Equipo - Período {mes_global}")
+
+            display_df = global_summary[[
+                "Director", "Visitas_Totales", "Visitas_Presenciales", "Visitas_Virtuales",
+                "Visitas_Nuevos", "Visitas_Existentes", "Puntos_Esfuerzo", "Factor_Actividad",
+                "Cierres", "Tasa_Conversion", "IEP", "Estatus"
+            ]].copy()
+
+            display_df["Factor_Actividad"] = (display_df["Factor_Actividad"] * 100).round(1).astype(str) + "%"
+            display_df["Tasa_Conversion"] = (display_df["Tasa_Conversion"] * 100).round(1).astype(str) + "%"
+            display_df["IEP"] = (display_df["IEP"] * 100).round(1).astype(str) + "%"
+
+            st.dataframe(display_df, use_container_width=True)
+        else:
+            st.info("No hay registros en la base de datos para mostrar acumulados.")
+
+    with tab2:
+        st.subheader("⚙️ Parámetros del Modelo")
+        c1, c2 = st.columns(2)
+        with c1:
+            st.session_state.config["p_presencial"] = st.number_input("Puntos Visita Presencial", value=st.session_state.config["p_presencial"])
+            st.session_state.config["p_virtual"] = st.number_input("Puntos Visita Virtual", value=st.session_state.config["p_virtual"])
+            st.session_state.config["umbral_puntos"] = st.number_input("Umbral Mínimo Puntos (Esfuerzo)", value=st.session_state.config["umbral_puntos"])
+        with c2:
+            st.session_state.config["p_captacion"] = st.number_input("Multiplicador Cliente Nuevo", value=st.session_state.config["p_captacion"])
+            st.session_state.config["p_mantenimiento"] = st.number_input("Multiplicador Cliente Existente", value=st.session_state.config["p_mantenimiento"])
+            st.session_state.config["iep_objetivo"] = st.number_input("IEP Objetivo Mínimo (%)", value=st.session_state.config["iep_objetivo"] * 100) / 100.0
+        st.success("Configuración actualizada.")
