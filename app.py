@@ -39,10 +39,10 @@ LISTA_DIRECTORES = [
     "Nicolás Quintero"
 ]
 
-# Inicializar Base de Datos vacía (Comenzar de cero)
+# Inicializar Base de Datos vacía con el campo Nombre Cliente
 if "records" not in st.session_state:
     st.session_state.records = pd.DataFrame(columns=[
-        "Fecha", "Mes_Año", "Director", "Tipo Cliente", "Canal", "Cierre"
+        "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"
     ])
 
 if "config" not in st.session_state:
@@ -101,28 +101,34 @@ if mode == "comercial":
 
     st.subheader("📝 Registrar Nueva Visita Comercial")
     
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns([1.2, 2, 1.5, 1.2, 1.2])
     with col1:
         fecha_visita = st.date_input("Fecha de Visita", datetime.date.today())
     with col2:
-        tipo_cliente = st.selectbox("Tipo de Cliente", ["Nuevo (Captación)", "Existente (Mantenimiento)"])
+        nombre_cliente = st.text_input("Nombre Cliente / Cuenta", placeholder="Ej: Fondo Pensión ABC / Juan Pérez")
     with col3:
-        canal = st.selectbox("Canal de Reunión", ["Presencial", "Virtual"])
+        tipo_cliente = st.selectbox("Tipo de Cliente", ["Nuevo (Captación)", "Existente (Mantenimiento)"])
     with col4:
+        canal = st.selectbox("Canal de Reunión", ["Presencial", "Virtual"])
+    with col5:
         cierre = st.selectbox("¿Ocurrió Cierre / Venta?", ["No", "Sí"])
 
     if st.button("💾 Guardar Visita"):
-        mes_str = fecha_visita.strftime("%Y-%m") # Guardar periodo Año-Mes
-        new_row = pd.DataFrame([{
-            "Fecha": str(fecha_visita),
-            "Mes_Año": mes_str,
-            "Director": selected_director,
-            "Tipo Cliente": tipo_cliente,
-            "Canal": canal,
-            "Cierre": cierre
-        }])
-        st.session_state.records = pd.concat([st.session_state.records, new_row], ignore_index=True)
-        st.success("¡Visita registrada exitosamente!")
+        if not nombre_cliente.strip():
+            st.warning("⚠️ Por favor ingresa el Nombre del Cliente antes de guardar.")
+        else:
+            mes_str = fecha_visita.strftime("%Y-%m") # Guardar periodo Año-Mes
+            new_row = pd.DataFrame([{
+                "Fecha": str(fecha_visita),
+                "Mes_Año": mes_str,
+                "Director": selected_director,
+                "Nombre Cliente": nombre_cliente.strip(),
+                "Tipo Cliente": tipo_cliente,
+                "Canal": canal,
+                "Cierre": cierre
+            }])
+            st.session_state.records = pd.concat([st.session_state.records, new_row], ignore_index=True)
+            st.success(f"¡Visita a '{nombre_cliente}' registrada exitosamente!")
 
     st.divider()
     
@@ -148,7 +154,7 @@ if mode == "comercial":
             m5.metric("IEP Comercial", f"{row['IEP']*100:.1f}%", delta=row["Estatus"])
         
         st.caption(f"Detalle de visitas registradas en {selected_mes}:")
-        st.dataframe(user_records_month[["Fecha", "Tipo Cliente", "Canal", "Cierre"]], use_container_width=True)
+        st.dataframe(user_records_month[["Fecha", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"]], use_container_width=True)
     else:
         st.info("Aún no tienes visitas registradas. Comienza guardando tu primera visita arriba.")
 
@@ -160,7 +166,7 @@ elif mode == "lider":
     st.title("👑 Consola de Liderazgo Comercial - Asset Management")
     st.caption("Consolidador de rendimiento global y calibración del modelo IEP.")
 
-    tab1, tab2 = st.tabs(["📊 Dashboard de Rendimiento Global", "⚙️ Configuración de Parámetros"])
+    tab1, tab2, tab3 = st.tabs(["📊 Dashboard de Rendimiento Global", "📋 Detalle de Visitas por Cliente", "⚙️ Configuración de Parámetros"])
 
     with tab1:
         if not st.session_state.records.empty:
@@ -196,6 +202,26 @@ elif mode == "lider":
             st.info("No hay registros en la base de datos para mostrar acumulados.")
 
     with tab2:
+        st.subheader("🔎 Bitácora Detallada de Visitas Comercial del Equipo")
+        if not st.session_state.records.empty:
+            meses_bitacora = sorted(st.session_state.records["Mes_Año"].unique(), reverse=True)
+            col_m1, col_m2 = st.columns([1, 1])
+            with col_m1:
+                m_selected = st.selectbox("Filtrar por Mes:", ["Todos"] + meses_bitacora)
+            with col_m2:
+                d_selected = st.selectbox("Filtrar por Director:", ["Todos"] + LISTA_DIRECTORES)
+
+            df_bitacora = st.session_state.records.copy()
+            if m_selected != "Todos":
+                df_bitacora = df_bitacora[df_bitacora["Mes_Año"] == m_selected]
+            if d_selected != "Todos":
+                df_bitacora = df_bitacora[df_bitacora["Director"] == d_selected]
+
+            st.dataframe(df_bitacora[["Fecha", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"]], use_container_width=True)
+        else:
+            st.info("Aún no hay visitas registradas por el equipo.")
+
+    with tab3:
         st.subheader("⚙️ Parámetros del Modelo")
         c1, c2 = st.columns(2)
         with c1:
