@@ -29,18 +29,28 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize Session State Data
+# Lista de Directores Actualizada
+LISTA_DIRECTORES = [
+    "Claudia Céspedez",
+    "Claudia Lizarralde",
+    "Gloria Lamus",
+    "Karen Cortés",
+    "Laura Gómez",
+    "María Camila León",
+    "Nicolás Quintero"
+]
+
+# Initialize Session State Data with actual team members
 if "records" not in st.session_state:
     st.session_state.records = pd.DataFrame([
-        {"Fecha": "2026-07-01", "Director": "Carlos Mendoza", "Tipo Cliente": "Nuevo (Captación)", "Canal": "Presencial", "Cierre": "Sí"},
-        {"Fecha": "2026-07-03", "Director": "Carlos Mendoza", "Tipo Cliente": "Nuevo (Captación)", "Canal": "Presencial", "Cierre": "No"},
-        {"Fecha": "2026-07-05", "Director": "Carlos Mendoza", "Tipo Cliente": "Existente (Mantenimiento)", "Canal": "Virtual", "Cierre": "No"},
-        {"Fecha": "2026-07-10", "Director": "Carlos Mendoza", "Tipo Cliente": "Nuevo (Captación)", "Canal": "Virtual", "Cierre": "Sí"},
-        {"Fecha": "2026-07-02", "Director": "Ana María Rojas", "Tipo Cliente": "Existente (Mantenimiento)", "Canal": "Presencial", "Cierre": "Sí"},
-        {"Fecha": "2026-07-04", "Director": "Ana María Rojas", "Tipo Cliente": "Existente (Mantenimiento)", "Canal": "Presencial", "Cierre": "No"},
-        {"Fecha": "2026-07-08", "Director": "Ana María Rojas", "Tipo Cliente": "Nuevo (Captación)", "Canal": "Presencial", "Cierre": "Sí"},
-        {"Fecha": "2026-07-12", "Director": "Ana María Rojas", "Tipo Cliente": "Existente (Mantenimiento)", "Canal": "Virtual", "Cierre": "No"},
-        {"Fecha": "2026-07-15", "Director": "Ana María Rojas", "Tipo Cliente": "Nuevo (Captación)", "Canal": "Presencial", "Cierre": "Sí"},
+        {"Fecha": "2026-07-01", "Director": "Claudia Céspedez", "Tipo Cliente": "Nuevo (Captación)", "Canal": "Presencial", "Cierre": "Sí"},
+        {"Fecha": "2026-07-03", "Director": "Claudia Céspedez", "Tipo Cliente": "Nuevo (Captación)", "Canal": "Presencial", "Cierre": "No"},
+        {"Fecha": "2026-07-05", "Director": "Claudia Lizarralde", "Tipo Cliente": "Existente (Mantenimiento)", "Canal": "Virtual", "Cierre": "No"},
+        {"Fecha": "2026-07-10", "Director": "Gloria Lamus", "Tipo Cliente": "Nuevo (Captación)", "Canal": "Virtual", "Cierre": "Sí"},
+        {"Fecha": "2026-07-02", "Director": "Karen Cortés", "Tipo Cliente": "Existente (Mantenimiento)", "Canal": "Presencial", "Cierre": "Sí"},
+        {"Fecha": "2026-07-04", "Director": "Laura Gómez", "Tipo Cliente": "Existente (Mantenimiento)", "Canal": "Presencial", "Cierre": "No"},
+        {"Fecha": "2026-07-08", "Director": "María Camila León", "Tipo Cliente": "Nuevo (Captación)", "Canal": "Presencial", "Cierre": "Sí"},
+        {"Fecha": "2026-07-12", "Director": "Nicolás Quintero", "Tipo Cliente": "Existente (Mantenimiento)", "Canal": "Virtual", "Cierre": "No"},
     ])
 
 if "config" not in st.session_state:
@@ -94,8 +104,7 @@ def compute_metrics(df, config):
 if role == "👤 Registro Comercial (Director)":
     st.subheader("📝 Registrar Nueva Visita Comercial")
     
-    directores = ["Carlos Mendoza", "Ana María Rojas", "Roberto Gómez", "Laura Silva"]
-    selected_director = st.selectbox("Selecciona tu Nombre:", directores)
+    selected_director = st.selectbox("Selecciona tu Nombre:", LISTA_DIRECTORES)
     
     col1, col2, col3, col4 = st.columns(4)
     with col1:
