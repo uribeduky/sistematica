@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import datetime
+from streamlit_gsheets import GSheetsConnection
 
 # Configuration
 st.set_page_config(
@@ -39,25 +40,37 @@ LISTA_DIRECTORES = [
     "Nicolás Quintero"
 ]
 
-# Inicializar Base de Datos vacía con columna ID única para borrar
-if "records" not in st.session_state:
-    st.session_state.records = pd.DataFrame(columns=[
-        "ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"
-    ])
+# Configuración del modelo por defecto
+DEFAULT_CONFIG = {
+    "p_presencial": 1.0,
+    "p_virtual": 0.6,
+    "p_captacion": 1.5,
+    "p_mantenimiento": 0.8,
+    "umbral_puntos": 15.0,
+    "iep_objetivo": 0.15
+}
 
 if "config" not in st.session_state:
-    st.session_state.config = {
-        "p_presencial": 1.0,
-        "p_virtual": 0.6,
-        "p_captacion": 1.5,
-        "p_mantenimiento": 0.8,
-        "umbral_puntos": 15.0,
-        "iep_objetivo": 0.15
-    }
+    st.session_state.config = DEFAULT_CONFIG
+
+# Crear conexión persistente a Google Sheets
+conn = st.connection("gsheets", type=GSheetsConnection)
+
+def load_data():
+    try:
+        df = conn.read(ttl=0)
+        if df is None or df.empty:
+            return pd.DataFrame(columns=["ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"])
+        return df
+    except Exception:
+        return pd.DataFrame(columns=["ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"])
+
+def save_data(df):
+    conn.update(data=df)
 
 # Capturar parámetros de la URL para separar accesos (Links)
 query_params = st.query_params
-mode = query_params.get("modo", "comercial") # 'comercial' o 'lider'
+mode = query_params.get("modo", "comercial")
 
 # Función de cálculo de métricas por mes
 def compute_metrics(df, config):
@@ -68,7 +81,7 @@ def compute_metrics(df, config):
     df_calc["Puntos_Canal"] = df_calc["Canal"].map({"Presencial": config["p_presencial"], "Virtual": config["p_virtual"]})
     df_calc["Puntos_Tipo"] = df_calc["Tipo Cliente"].map({"Nuevo (Captación)": config["p_captacion"], "Existente (Mantenimiento)": config["p_mantenimiento"]})
     df_calc["Puntos_Esfuerzo"] = df_calc["Puntos_Canal"] * df_calc["Puntos_Tipo"]
-    df_calc["Es_Cierre"] = df_calc["Cierre"].apply(lambda x: 1 if x == "Sí" else 0)
+    df_calc["Es_Cierre"] = df_calc["Cierre"].apply(lambda x: 1 if str(x).strip().lower() in ["sí", "si"] else 0)
 
     summary = df_calc.groupby("Director").agg(
         Visitas_Totales=("Fecha", "count"),
@@ -87,9 +100,10 @@ def compute_metrics(df, config):
 
     return summary
 
+records_df = load_data()
+
 # =============================================================
 # MODO 1: PORTAL COMERCIAL (Para Directores)
-# URL: ?modo=comercial (o sin parámetros)
 # =============================================================
 if mode == "comercial":
     st.title("👤 Portal Comercial - Registro de Visitas")
@@ -129,15 +143,16 @@ if mode == "comercial":
                 "Canal": canal,
                 "Cierre": cierre
             }])
-            st.session_state.records = pd.concat([st.session_state.records, new_row], ignore_index=True)
-            st.success(f"¡Visita a '{nombre_cliente}' registrada exitosamente!")
+            updated_df = pd.concat([records_df, new_row], ignore_index=True)
+            save_data(updated_df)
+            st.success(f"¡Visita a '{nombre_cliente}' registrada de forma permanente!")
+            st.rerun()
 
     st.divider()
     
-    # Resumen e Historial con Opción de Borrar Visitas
     st.subheader(f"📌 Resumen Individual - {selected_director}")
     
-    user_records_all = st.session_state.records[st.session_state.records["Director"] == selected_director]
+    user_records_all = records_df[records_df["Director"] == selected_director] if not records_df.empty else pd.DataFrame()
     
     if not user_records_all.empty:
         meses_disponibles = sorted(user_records_all["Mes_Año"].unique(), reverse=True)
@@ -157,7 +172,6 @@ if mode == "comercial":
         
         st.subheader("🗑️ Mis Visitas Registradas (Gestionar / Borrar)")
         
-        # Permitir eliminar filas directamente
         edited_df = st.data_editor(
             user_records_month[["ID", "Fecha", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"]],
             num_rows="dynamic",
@@ -167,20 +181,19 @@ if mode == "comercial":
         
         if st.button("🔄 Aplicar Cambios / Guardar Eliminaciones"):
             ids_mantenidos = edited_df["ID"].tolist()
-            # Conservar en la base de datos global únicamente las visitas que no fueron borradas
-            st.session_state.records = st.session_state.records[
-                (st.session_state.records["Director"] != selected_director) | 
-                (st.session_state.records["Mes_Año"] != selected_mes) | 
-                (st.session_state.records["ID"].isin(ids_mantenidos))
+            new_global_df = records_df[
+                (records_df["Director"] != selected_director) | 
+                (records_df["Mes_Año"] != selected_mes) | 
+                (records_df["ID"].isin(ids_mantenidos))
             ]
-            st.success("¡Registros actualizados correctamente!")
+            save_data(new_global_df)
+            st.success("¡Base de datos persistente actualizada correctamente!")
             st.rerun()
     else:
         st.info("Aún no tienes visitas registradas. Comienza guardando tu primera visita arriba.")
 
 # =============================================================
 # MODO 2: CONSOLA LÍDER COMERCIAL
-# URL: ?modo=lider
 # =============================================================
 elif mode == "lider":
     st.title("👑 Consola de Liderazgo Comercial - Asset Management")
@@ -189,13 +202,13 @@ elif mode == "lider":
     tab1, tab2, tab3 = st.tabs(["📊 Dashboard de Rendimiento Global", "📋 Detalle y Borrado de Visitas", "⚙️ Configuración de Parámetros"])
 
     with tab1:
-        if not st.session_state.records.empty:
-            meses_globales = sorted(st.session_state.records["Mes_Año"].unique(), reverse=True)
+        if not records_df.empty:
+            meses_globales = sorted(records_df["Mes_Año"].unique(), reverse=True)
             col_mes, col_spacer = st.columns([1, 2])
             with col_mes:
                 mes_global = st.selectbox("📅 Selecciona el Mes a Evaluar:", meses_globales)
             
-            records_month = st.session_state.records[st.session_state.records["Mes_Año"] == mes_global]
+            records_month = records_df[records_df["Mes_Año"] == mes_global]
             global_summary = compute_metrics(records_month, st.session_state.config)
 
             if not global_summary.empty:
@@ -226,15 +239,15 @@ elif mode == "lider":
 
     with tab2:
         st.subheader("🔎 Bitácora Detallada de Visitas Comercial del Equipo (Edición Líder)")
-        if not st.session_state.records.empty:
-            meses_bitacora = sorted(st.session_state.records["Mes_Año"].unique(), reverse=True)
+        if not records_df.empty:
+            meses_bitacora = sorted(records_df["Mes_Año"].unique(), reverse=True)
             col_m1, col_m2 = st.columns([1, 1])
             with col_m1:
                 m_selected = st.selectbox("Filtrar por Mes:", ["Todos"] + meses_bitacora)
             with col_m2:
                 d_selected = st.selectbox("Filtrar por Director:", ["Todos"] + LISTA_DIRECTORES)
 
-            df_bitacora = st.session_state.records.copy()
+            df_bitacora = records_df.copy()
             if m_selected != "Todos":
                 df_bitacora = df_bitacora[df_bitacora["Mes_Año"] == m_selected]
             if d_selected != "Todos":
@@ -249,10 +262,9 @@ elif mode == "lider":
 
             if st.button("🗑️ Confirmar Eliminaciones / Cambios (Líder)"):
                 ids_mantenidos = edited_lider["ID"].tolist()
-                st.session_state.records = st.session_state.records[
-                    st.session_state.records["ID"].isin(ids_mantenidos)
-                ]
-                st.success("¡Bitácora actualizada y registros eliminados correctamente!")
+                new_df = records_df[records_df["ID"].isin(ids_mantenidos)]
+                save_data(new_df)
+                st.success("¡Base de datos persistente actualizada!")
                 st.rerun()
         else:
             st.info("Aún no hay visitas registradas por el equipo.")
