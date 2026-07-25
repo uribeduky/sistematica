@@ -2,7 +2,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import datetime
-import requests
+import urllib.parse
+import urllib.request
 
 # Configuration
 st.set_page_config(
@@ -72,7 +73,7 @@ def load_data():
     return st.session_state.records
 
 # -------------------------------------------------------------
-# CÁLCULO DE MÉTRICAS IDÉNTICO AL MODELO EXCEL (.XLS)
+# CÁLCULO DE MÉTRICAS IDÉNTICO AL EXCEL + CONTROL DE UMBRAL
 # -------------------------------------------------------------
 def compute_metrics(df, config):
     if df.empty:
@@ -94,26 +95,16 @@ def compute_metrics(df, config):
         Cierres=("Es_Cierre", "sum")
     ).reset_index()
 
-    # Puntos por Canal (Presencial + Virtual)
     puntos_canal = (summary["Visitas_Presenciales"] * config["p_presencial"]) + (summary["Visitas_Virtuales"] * config["p_virtual"])
-    
-    # Mezcla de Cliente (Ponderación Captación vs Mantenimiento)
     puntos_tipo = (summary["Visitas_Nuevos"] * config["p_captacion"]) + (summary["Visitas_Existentes"] * config["p_mantenimiento"])
     mezcla_cliente = puntos_tipo / summary["Visitas_Totales"].replace(0, 1)
 
-    # Fórmula XLS: Puntos Esfuerzo = Puntos Canal * Mezcla Cliente
     summary["Puntos_Esfuerzo"] = (puntos_canal * mezcla_cliente).round(1)
-    
-    # Factor de Actividad (Top de 1.0 al alcanzar los 15 puntos)
     summary["Factor_Actividad"] = summary["Puntos_Esfuerzo"].apply(lambda pts: min(1.0, pts / config["umbral_puntos"]))
-    
-    # Tasa de Conversión Real
     summary["Tasa_Conversion"] = summary["Cierres"] / summary["Visitas_Totales"].replace(0, 1)
-    
-    # IEP = Tasa de Conversión * Factor de Actividad
     summary["IEP"] = summary["Tasa_Conversion"] * summary["Factor_Actividad"]
     
-    # Estatus vs Objetivo (Exige alcanzar los 15 pts de esfuerzo y el 15% de IEP)
+    # REGLA ESTRICATA DE CUMPLE IEP: Exige alcanzar el umbral de 15 puntos
     def evaluar_cumplimiento(row):
         if row["Puntos_Esfuerzo"] < config["umbral_puntos"]:
             return "🔴 ESFUERZO INSUFICIENTE"
@@ -161,7 +152,8 @@ if mode == "comercial":
             mes_str = fecha_visita.strftime("%Y-%m")
             record_id = str(int(datetime.datetime.now().timestamp() * 1000))
             
-            payload = {
+            # Enviar datos a Google Sheets usando URL Params (Compatibilidad 100%)
+            params = {
                 "ID": record_id,
                 "Fecha": str(fecha_visita),
                 "Mes_Año": mes_str,
@@ -172,11 +164,13 @@ if mode == "comercial":
                 "Cierre": cierre
             }
             
-            if WEBAPP_URL and "http" in WEBAPP_URL:
-                try:
-                    requests.post(WEBAPP_URL, json=payload, timeout=5)
-                except Exception:
-                    pass
+            try:
+                query_string = urllib.parse.urlencode(params)
+                full_url = f"{WEBAPP_URL}?{query_string}"
+                req = urllib.request.Request(full_url, headers={'User-Agent': 'Mozilla/5.0'})
+                urllib.request.urlopen(req)
+            except Exception:
+                pass
 
             new_row = pd.DataFrame([{
                 "ID": record_id,
