@@ -54,23 +54,35 @@ if "config" not in st.session_state:
     st.session_state.config = DEFAULT_CONFIG
 
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1c_3WF_RyzgtsHyr6MlPnVGYFvBfjveUIKCe6RRQdAws/export?format=csv"
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyhYm5AeQ3M4Ygz0Z-F-W41oA9Lj3nJ6JVFXmI_zy75fJ93GcPK5IY25t-IpEjibC0syA/exec"
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzUkbE7go0FZZtlSnbBQWEwO3yU9ROiaYH6IjVImDb0uZpqwBj6C6vC80in0wcahscMgw/exec"
 
-if "records" not in st.session_state:
-    st.session_state.records = pd.DataFrame(columns=[
-        "ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"
-    ])
+if "deleted_ids" not in st.session_state:
+    st.session_state.deleted_ids = set()
+
+def delete_from_google_sheet(record_id):
+    try:
+        params = {"action": "delete", "ID": str(record_id)}
+        query_string = urllib.parse.urlencode(params)
+        full_url = f"{WEBAPP_URL}?{query_string}"
+        req = urllib.request.Request(full_url, headers={'User-Agent': 'Mozilla/5.0'})
+        urllib.request.urlopen(req)
+    except Exception:
+        pass
 
 def load_data():
     try:
-        df_sheet = pd.read_csv(SHEET_CSV_URL)
+        # Cargar siempre la versión más reciente del CSV descartando la caché de la URL
+        timestamp_url = f"{SHEET_CSV_URL}&t={int(datetime.datetime.now().timestamp())}"
+        df_sheet = pd.read_csv(timestamp_url)
         if not df_sheet.empty and "ID" in df_sheet.columns:
             df_sheet["ID"] = df_sheet["ID"].astype(str)
-            combined = pd.concat([df_sheet, st.session_state.records], ignore_index=True).drop_duplicates(subset=["ID"], keep="last")
-            return combined
+            # Filtrar los IDs eliminados recientemete
+            if st.session_state.deleted_ids:
+                df_sheet = df_sheet[~df_sheet["ID"].isin(st.session_state.deleted_ids)]
+            return df_sheet
     except Exception:
         pass
-    return st.session_state.records
+    return pd.DataFrame(columns=["ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"])
 
 def compute_metrics(df, config):
     if df.empty:
@@ -149,6 +161,7 @@ if mode == "comercial":
             record_id = str(int(datetime.datetime.now().timestamp() * 1000))
             
             params = {
+                "action": "add",
                 "ID": record_id,
                 "Fecha": str(fecha_visita),
                 "Mes_Año": mes_str,
@@ -167,17 +180,6 @@ if mode == "comercial":
             except Exception:
                 pass
 
-            new_row = pd.DataFrame([{
-                "ID": record_id,
-                "Fecha": str(fecha_visita),
-                "Mes_Año": mes_str,
-                "Director": selected_director,
-                "Nombre Cliente": nombre_cliente.strip(),
-                "Tipo Cliente": tipo_cliente,
-                "Canal": canal,
-                "Cierre": cierre
-            }])
-            st.session_state.records = pd.concat([st.session_state.records, new_row], ignore_index=True)
             st.success(f"¡Visita a '{nombre_cliente}' registrada exitosamente!")
             st.rerun()
 
@@ -204,33 +206,30 @@ if mode == "comercial":
             m5.metric("IEP Comercial", f"{row['IEP']*100:.1f}%", delta=row["Estatus"])
         
         st.divider()
-        st.subheader("📋 Mis Visitas Registradas (Gestión Directa)")
-        st.caption("💡 *Para borrar una visita, marca la casilla de la izquierda en la tabla o selecciona la fila y presiona la tecla Supr/Delete.*")
+        st.subheader("📋 Mis Visitas Registradas")
 
-        # TABLA INTERACTIVA CON SELECCIÓN
+        # TABLA DE VISITAS CON OPCIÓN DE BORRADO INDIVIDUAL
         df_display = user_records_month[["ID", "Fecha", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"]].copy()
         
-        # Editor interactivo con borrado de filas habilitado
-        edited_df = st.data_editor(
-            df_display,
-            num_rows="dynamic",
-            use_container_width=True,
-            column_config={
-                "ID": None # Ocultamos el ID para limpiar la vista
-            },
-            key="editor_usuario"
-        )
+        # Muestra la lista limpia de visitas
+        st.dataframe(df_display[["Fecha", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"]], use_container_width=True)
 
-        # Detectar si se eliminaron filas
-        if len(edited_df) < len(df_display):
-            ids_mantenidos = edited_df["ID"].astype(str).tolist()
-            st.session_state.records = records_df[
-                (records_df["Director"] != selected_director) | 
-                (records_df["Mes_Año"] != selected_mes) | 
-                (records_df["ID"].astype(str).isin(ids_mantenidos))
-            ]
-            st.success("¡Visita eliminada correctamente!")
-            st.rerun()
+        # Módulo de borrado limpio por selección de cliente
+        with st.expander("🗑️ Eliminar una visita de la base de datos"):
+            dict_opciones = {
+                f"{r['Fecha']} - {r['Nombre Cliente']} ({r['Canal']})": r['ID']
+                for _, r in df_display.iterrows()
+            }
+            seleccion_borrar = st.selectbox("Selecciona la visita que deseas eliminar permanentemente:", list(dict_opciones.keys()))
+            
+            if st.button("🔴 Confirmar y Eliminar de Google Sheets"):
+                id_a_borrar = dict_opciones[seleccion_borrar]
+                # 1. Borrar en Google Sheets físicamente
+                delete_from_google_sheet(id_a_borrar)
+                # 2. Registrar ID borrado localmente
+                st.session_state.deleted_ids.add(str(id_a_borrar))
+                st.success("¡Visita eliminada permanentemente de Google Sheets!")
+                st.rerun()
 
     else:
         st.info("Aún no tienes visitas registradas. Comienza guardando tu primera visita arriba.")
@@ -296,21 +295,21 @@ elif mode == "lider":
             if d_selected != "Todos":
                 df_bitacora = df_bitacora[df_bitacora["Director"] == d_selected]
 
-            st.caption("💡 *Para eliminar una visita como Líder, selecciona la casilla de la fila y elimínala directamente.*")
-            
-            edited_lider = st.data_editor(
-                df_bitacora[["ID", "Fecha", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"]],
-                num_rows="dynamic",
-                use_container_width=True,
-                column_config={"ID": None},
-                key="editor_lider_interactive"
-            )
+            st.dataframe(df_bitacora[["Fecha", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"]], use_container_width=True)
 
-            if len(edited_lider) < len(df_bitacora):
-                ids_mantenidos = edited_lider["ID"].astype(str).tolist()
-                st.session_state.records = records_df[records_df["ID"].astype(str).isin(ids_mantenidos)]
-                st.success("¡Registro eliminado por la administración!")
-                st.rerun()
+            with st.expander("🗑️ Eliminar un registro de la base de datos (Administración)"):
+                dict_lider = {
+                    f"{r['Fecha']} | {r['Director']} -> {r['Nombre Cliente']}": r['ID']
+                    for _, r in df_bitacora.iterrows()
+                }
+                if dict_lider:
+                    sel_lider = st.selectbox("Selecciona la visita a borrar:", list(dict_lider.keys()))
+                    if st.button("🔴 Eliminar Definitivamente de Google Sheets"):
+                        id_del = dict_lider[sel_lider]
+                        delete_from_google_sheet(id_del)
+                        st.session_state.deleted_ids.add(str(id_del))
+                        st.success("¡Registro eliminado permanentemente!")
+                        st.rerun()
         else:
             st.info("Aún no hay visitas registradas por el equipo.")
 
