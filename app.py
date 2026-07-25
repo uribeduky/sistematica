@@ -56,7 +56,7 @@ if "config" not in st.session_state:
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1c_3WF_RyzgtsHyr6MlPnVGYFvBfjveUIKCe6RRQdAws/export?format=csv"
 
 # PEGA AQUÍ LA URL DE TU APPS SCRIPT WEB APP (del Paso A):
-WEBAPP_URL = "COLOCAR_AQUI_TU_URL_DE_APPS_SCRIPT_EXEC"
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycby3KW1Fq_J0IDwCjcHd9RxY7w6ig6LHkPcxq9EIqpIfDjc56L6Zf_4cfexMqP7wlHJbmw/exec"
 
 if "records" not in st.session_state:
     st.session_state.records = pd.DataFrame(columns=[
