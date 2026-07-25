@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import datetime
-from streamlit_gsheets import GSheetsConnection
+import gspread
 
 # Configuration
 st.set_page_config(
@@ -52,23 +52,48 @@ DEFAULT_CONFIG = {
 if "config" not in st.session_state:
     st.session_state.config = DEFAULT_CONFIG
 
-# Crear conexión persistente a Google Sheets
-conn = st.connection("gsheets", type=GSheetsConnection)
+# URL del Google Sheet
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1c_3WF_RyzgtsHyr6MlPnVGYFvBfjveUIKCe6RRQdAws/edit?gid=0#gid=0"
+
+# Conexión directa a Google Sheet mediante gspread
+@st.cache_resource
+def get_gsheet_client():
+    return gspread.public_client()
+
+def get_worksheet():
+    client = get_gsheet_client()
+    sh = client.open_by_url(SHEET_URL)
+    return sh.sheet1
 
 def load_data():
     try:
-        df = conn.read(ttl=0)
-        if df is None or df.empty:
+        ws = get_worksheet()
+        data = ws.get_all_records()
+        df = pd.DataFrame(data)
+        if df.empty or not {"ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"}.issubset(df.columns):
             return pd.DataFrame(columns=["ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"])
-        # Asegurar tipos de columnas
         df["ID"] = df["ID"].astype(str)
         return df
     except Exception:
-        return pd.DataFrame(columns=["ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"])
+        # Alternativa de lectura directa mediante pandas CSV
+        try:
+            csv_url = "https://docs.google.com/spreadsheets/d/1c_3WF_RyzgtsHyr6MlPnVGYFvBfjveUIKCe6RRQdAws/export?format=csv"
+            df = pd.read_csv(csv_url)
+            df["ID"] = df["ID"].astype(str)
+            return df
+        except Exception:
+            return pd.DataFrame(columns=["ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"])
 
 def save_data(df):
-    # Guardar asegurando que no pase como operación no soportada
-    conn.update(worksheet="Sheet1", data=df)
+    try:
+        ws = get_worksheet()
+        ws.clear()
+        # Asegurar encabezados y formato de lista
+        header = ["ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"]
+        df_export = df[header].copy()
+        ws.update([header] + df_export.values.tolist())
+    except Exception as e:
+        st.error(f"Error al guardar en Google Sheets: {e}")
 
 # Capturar parámetros de la URL para separar accesos (Links)
 query_params = st.query_params
@@ -157,7 +182,7 @@ if mode == "comercial":
     user_records_all = records_df[records_df["Director"] == selected_director] if not records_df.empty else pd.DataFrame()
     
     if not user_records_all.empty:
-        meses_disponibles = sorted(user_records_all["Mes_Año"].unique(), reverse=True)
+        meses_disponibles = sorted(user_records_all["Mes_Año"].astype(str).unique(), reverse=True)
         selected_mes = st.selectbox("📅 Selecciona el Mes a consultar:", meses_disponibles, key="mes_user")
         
         user_records_month = user_records_all[user_records_all["Mes_Año"] == selected_mes]
@@ -205,7 +230,7 @@ elif mode == "lider":
 
     with tab1:
         if not records_df.empty:
-            meses_globales = sorted(records_df["Mes_Año"].unique(), reverse=True)
+            meses_globales = sorted(records_df["Mes_Año"].astype(str).unique(), reverse=True)
             col_mes, col_spacer = st.columns([1, 2])
             with col_mes:
                 mes_global = st.selectbox("📅 Selecciona el Mes a Evaluar:", meses_globales)
@@ -242,7 +267,7 @@ elif mode == "lider":
     with tab2:
         st.subheader("🔎 Bitácora Detallada de Visitas Comercial del Equipo (Edición Líder)")
         if not records_df.empty:
-            meses_bitacora = sorted(records_df["Mes_Año"].unique(), reverse=True)
+            meses_bitacora = sorted(records_df["Mes_Año"].astype(str).unique(), reverse=True)
             col_m1, col_m2 = st.columns([1, 1])
             with col_m1:
                 m_selected = st.selectbox("Filtrar por Mes:", ["Todos"] + meses_bitacora)
