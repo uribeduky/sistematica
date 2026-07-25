@@ -39,10 +39,10 @@ LISTA_DIRECTORES = [
     "Nicolás Quintero"
 ]
 
-# Inicializar Base de Datos vacía con el campo Nombre Cliente
+# Inicializar Base de Datos vacía con columna ID única para borrar
 if "records" not in st.session_state:
     st.session_state.records = pd.DataFrame(columns=[
-        "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"
+        "ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"
     ])
 
 if "config" not in st.session_state:
@@ -117,8 +117,10 @@ if mode == "comercial":
         if not nombre_cliente.strip():
             st.warning("⚠️ Por favor ingresa el Nombre del Cliente antes de guardar.")
         else:
-            mes_str = fecha_visita.strftime("%Y-%m") # Guardar periodo Año-Mes
+            mes_str = fecha_visita.strftime("%Y-%m")
+            record_id = int(datetime.datetime.now().timestamp() * 1000)
             new_row = pd.DataFrame([{
+                "ID": record_id,
                 "Fecha": str(fecha_visita),
                 "Mes_Año": mes_str,
                 "Director": selected_director,
@@ -132,7 +134,7 @@ if mode == "comercial":
 
     st.divider()
     
-    # Filtro Mensual para el Director
+    # Resumen e Historial con Opción de Borrar Visitas
     st.subheader(f"📌 Resumen Individual - {selected_director}")
     
     user_records_all = st.session_state.records[st.session_state.records["Director"] == selected_director]
@@ -153,8 +155,26 @@ if mode == "comercial":
             m4.metric("Tasa Conversión", f"{row['Tasa_Conversion']*100:.1f}%")
             m5.metric("IEP Comercial", f"{row['IEP']*100:.1f}%", delta=row["Estatus"])
         
-        st.caption(f"Detalle de visitas registradas en {selected_mes}:")
-        st.dataframe(user_records_month[["Fecha", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"]], use_container_width=True)
+        st.subheader("🗑️ Mis Visitas Registradas (Gestionar / Borrar)")
+        
+        # Permitir eliminar filas directamente
+        edited_df = st.data_editor(
+            user_records_month[["ID", "Fecha", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"]],
+            num_rows="dynamic",
+            use_container_width=True,
+            key="editor_director"
+        )
+        
+        if st.button("🔄 Aplicar Cambios / Guardar Eliminaciones"):
+            ids_mantenidos = edited_df["ID"].tolist()
+            # Conservar en la base de datos global únicamente las visitas que no fueron borradas
+            st.session_state.records = st.session_state.records[
+                (st.session_state.records["Director"] != selected_director) | 
+                (st.session_state.records["Mes_Año"] != selected_mes) | 
+                (st.session_state.records["ID"].isin(ids_mantenidos))
+            ]
+            st.success("¡Registros actualizados correctamente!")
+            st.rerun()
     else:
         st.info("Aún no tienes visitas registradas. Comienza guardando tu primera visita arriba.")
 
@@ -166,7 +186,7 @@ elif mode == "lider":
     st.title("👑 Consola de Liderazgo Comercial - Asset Management")
     st.caption("Consolidador de rendimiento global y calibración del modelo IEP.")
 
-    tab1, tab2, tab3 = st.tabs(["📊 Dashboard de Rendimiento Global", "📋 Detalle de Visitas por Cliente", "⚙️ Configuración de Parámetros"])
+    tab1, tab2, tab3 = st.tabs(["📊 Dashboard de Rendimiento Global", "📋 Detalle y Borrado de Visitas", "⚙️ Configuración de Parámetros"])
 
     with tab1:
         if not st.session_state.records.empty:
@@ -178,31 +198,34 @@ elif mode == "lider":
             records_month = st.session_state.records[st.session_state.records["Mes_Año"] == mes_global]
             global_summary = compute_metrics(records_month, st.session_state.config)
 
-            col_a, col_b, col_c, col_d = st.columns(4)
-            col_a.metric("Total Visitas Equipo", int(global_summary["Visitas_Totales"].sum()))
-            col_b.metric("Puntos Promedio Esfuerzo", f"{global_summary['Puntos_Esfuerzo'].mean():.1f}")
-            col_c.metric("IEP Promedio Equipo", f"{global_summary['IEP'].mean()*100:.1f}%")
-            col_d.metric("Cierres Totales Mes", int(global_summary["Cierres"].sum()))
+            if not global_summary.empty:
+                col_a, col_b, col_c, col_d = st.columns(4)
+                col_a.metric("Total Visitas Equipo", int(global_summary["Visitas_Totales"].sum()))
+                col_b.metric("Puntos Promedio Esfuerzo", f"{global_summary['Puntos_Esfuerzo'].mean():.1f}")
+                col_c.metric("IEP Promedio Equipo", f"{global_summary['IEP'].mean()*100:.1f}%")
+                col_d.metric("Cierres Totales Mes", int(global_summary["Cierres"].sum()))
 
-            st.divider()
-            st.subheader(f"📋 Rendimiento del Equipo - Período {mes_global}")
+                st.divider()
+                st.subheader(f"📋 Rendimiento del Equipo - Período {mes_global}")
 
-            display_df = global_summary[[
-                "Director", "Visitas_Totales", "Visitas_Presenciales", "Visitas_Virtuales",
-                "Visitas_Nuevos", "Visitas_Existentes", "Puntos_Esfuerzo", "Factor_Actividad",
-                "Cierres", "Tasa_Conversion", "IEP", "Estatus"
-            ]].copy()
+                display_df = global_summary[[
+                    "Director", "Visitas_Totales", "Visitas_Presenciales", "Visitas_Virtuales",
+                    "Visitas_Nuevos", "Visitas_Existentes", "Puntos_Esfuerzo", "Factor_Actividad",
+                    "Cierres", "Tasa_Conversion", "IEP", "Estatus"
+                ]].copy()
 
-            display_df["Factor_Actividad"] = (display_df["Factor_Actividad"] * 100).round(1).astype(str) + "%"
-            display_df["Tasa_Conversion"] = (display_df["Tasa_Conversion"] * 100).round(1).astype(str) + "%"
-            display_df["IEP"] = (display_df["IEP"] * 100).round(1).astype(str) + "%"
+                display_df["Factor_Actividad"] = (display_df["Factor_Actividad"] * 100).round(1).astype(str) + "%"
+                display_df["Tasa_Conversion"] = (display_df["Tasa_Conversion"] * 100).round(1).astype(str) + "%"
+                display_df["IEP"] = (display_df["IEP"] * 100).round(1).astype(str) + "%"
 
-            st.dataframe(display_df, use_container_width=True)
+                st.dataframe(display_df, use_container_width=True)
+            else:
+                st.info("No hay registros en el mes seleccionado.")
         else:
             st.info("No hay registros en la base de datos para mostrar acumulados.")
 
     with tab2:
-        st.subheader("🔎 Bitácora Detallada de Visitas Comercial del Equipo")
+        st.subheader("🔎 Bitácora Detallada de Visitas Comercial del Equipo (Edición Líder)")
         if not st.session_state.records.empty:
             meses_bitacora = sorted(st.session_state.records["Mes_Año"].unique(), reverse=True)
             col_m1, col_m2 = st.columns([1, 1])
@@ -217,7 +240,20 @@ elif mode == "lider":
             if d_selected != "Todos":
                 df_bitacora = df_bitacora[df_bitacora["Director"] == d_selected]
 
-            st.dataframe(df_bitacora[["Fecha", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"]], use_container_width=True)
+            edited_lider = st.data_editor(
+                df_bitacora[["ID", "Fecha", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"]],
+                num_rows="dynamic",
+                use_container_width=True,
+                key="editor_lider"
+            )
+
+            if st.button("🗑️ Confirmar Eliminaciones / Cambios (Líder)"):
+                ids_mantenidos = edited_lider["ID"].tolist()
+                st.session_state.records = st.session_state.records[
+                    st.session_state.records["ID"].isin(ids_mantenidos)
+                ]
+                st.success("¡Bitácora actualizada y registros eliminados correctamente!")
+                st.rerun()
         else:
             st.info("Aún no hay visitas registradas por el equipo.")
 
