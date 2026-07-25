@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import datetime
+import requests
 
 # Configuration
 st.set_page_config(
@@ -51,10 +52,12 @@ DEFAULT_CONFIG = {
 if "config" not in st.session_state:
     st.session_state.config = DEFAULT_CONFIG
 
-# URL pública de consulta CSV de Google Sheet
+# URL pública de consulta CSV de tu Google Sheet
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1c_3WF_RyzgtsHyr6MlPnVGYFvBfjveUIKCe6RRQdAws/export?format=csv"
 
-# Inicializar sesión local si no existe
+# PEGA AQUÍ LA URL DE TU APPS SCRIPT WEB APP (del Paso A):
+WEBAPP_URL = "COLOCAR_AQUI_TU_URL_DE_APPS_SCRIPT_EXEC"
+
 if "records" not in st.session_state:
     st.session_state.records = pd.DataFrame(columns=[
         "ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"
@@ -71,6 +74,7 @@ def load_data():
         pass
     return st.session_state.records
 
+# Función con la nueva REGLA COMERCIAL ESTRICATA de cumplimiento
 def compute_metrics(df, config):
     if df.empty:
         return pd.DataFrame()
@@ -94,8 +98,17 @@ def compute_metrics(df, config):
     summary["Factor_Actividad"] = summary["Puntos_Esfuerzo"].apply(lambda pts: min(1.0, pts / config["umbral_puntos"]))
     summary["Tasa_Conversion"] = summary["Cierres"] / summary["Visitas_Totales"].replace(0, 1)
     summary["IEP"] = summary["Tasa_Conversion"] * summary["Factor_Actividad"]
-    summary["Estatus"] = summary["IEP"].apply(lambda x: "🟢 CUMPLE IEP" if x >= config["iep_objetivo"] else "🔴 BAJO OBJETIVO")
+    
+    # REGLA ESTRICATA: Requiere 100% de Factor de Actividad (>=15 pts) Y IEP >= 15%
+    def evaluar_cumplimiento(row):
+        if row["Factor_Actividad"] < 1.0:
+            return "🔴 ESFUERZO INSUFICIENTE"
+        elif row["IEP"] >= config["iep_objetivo"]:
+            return "🟢 CUMPLE IEP"
+        else:
+            return "🔴 BAJO OBJETIVO"
 
+    summary["Estatus"] = summary.apply(evaluar_cumplimiento, axis=1)
     return summary
 
 query_params = st.query_params
@@ -133,6 +146,25 @@ if mode == "comercial":
         else:
             mes_str = fecha_visita.strftime("%Y-%m")
             record_id = str(int(datetime.datetime.now().timestamp() * 1000))
+            
+            payload = {
+                "ID": record_id,
+                "Fecha": str(fecha_visita),
+                "Mes_Año": mes_str,
+                "Director": selected_director,
+                "Nombre_Cliente": nombre_cliente.strip(),
+                "Tipo_Cliente": tipo_cliente,
+                "Canal": canal,
+                "Cierre": cierre
+            }
+            
+            # Enviar a Google Sheets vía Webhook Script
+            if WEBAPP_URL and "http" in WEBAPP_URL:
+                try:
+                    requests.post(WEBAPP_URL, json=payload, timeout=5)
+                except Exception:
+                    pass
+
             new_row = pd.DataFrame([{
                 "ID": record_id,
                 "Fecha": str(fecha_visita),
@@ -144,7 +176,7 @@ if mode == "comercial":
                 "Cierre": cierre
             }])
             st.session_state.records = pd.concat([st.session_state.records, new_row], ignore_index=True)
-            st.success(f"¡Visita a '{nombre_cliente}' guardada exitosamente!")
+            st.success(f"¡Visita a '{nombre_cliente}' registrada de forma permanente!")
             st.rerun()
 
     st.divider()
