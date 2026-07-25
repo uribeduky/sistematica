@@ -72,9 +72,6 @@ def load_data():
         pass
     return st.session_state.records
 
-# -------------------------------------------------------------
-# CÁLCULO DE MÉTRICAS IDÉNTICO AL EXCEL + CONTROL DE UMBRAL
-# -------------------------------------------------------------
 def compute_metrics(df, config):
     if df.empty:
         return pd.DataFrame()
@@ -104,7 +101,6 @@ def compute_metrics(df, config):
     summary["Tasa_Conversion"] = summary["Cierres"] / summary["Visitas_Totales"].replace(0, 1)
     summary["IEP"] = summary["Tasa_Conversion"] * summary["Factor_Actividad"]
     
-    # REGLA ESTRICATA DE CUMPLE IEP: Exige alcanzar el umbral de 15 puntos
     def evaluar_cumplimiento(row):
         if row["Puntos_Esfuerzo"] < config["umbral_puntos"]:
             return "🔴 ESFUERZO INSUFICIENTE"
@@ -152,7 +148,6 @@ if mode == "comercial":
             mes_str = fecha_visita.strftime("%Y-%m")
             record_id = str(int(datetime.datetime.now().timestamp() * 1000))
             
-            # Enviar datos a Google Sheets usando URL Params (Compatibilidad 100%)
             params = {
                 "ID": record_id,
                 "Fecha": str(fecha_visita),
@@ -208,8 +203,24 @@ if mode == "comercial":
             m4.metric("Tasa Conversión", f"{row['Tasa_Conversion']*100:.1f}%")
             m5.metric("IEP Comercial", f"{row['IEP']*100:.1f}%", delta=row["Estatus"])
         
+        st.divider()
         st.subheader("📋 Mis Visitas Registradas")
         st.dataframe(user_records_month[["Fecha", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"]], use_container_width=True)
+
+        # SECCIÓN DE BORRADO DE REGISTROS
+        with st.expander("🗑️ Borrar o Eliminar una Visita Registrada"):
+            opciones_borrar = {
+                f"{r['Fecha']} | {r['Nombre Cliente']} ({r['Canal']})": r['ID'] 
+                for _, r in user_records_month.iterrows()
+            }
+            visita_a_borrar = st.selectbox("Selecciona la visita que deseas eliminar:", list(opciones_borrar.keys()))
+            
+            if st.button("🗑️ Confirmar Eliminar Visita"):
+                id_eliminar = opciones_borrar[visita_a_borrar]
+                st.session_state.records = st.session_state.records[st.session_state.records["ID"].astype(str) != str(id_eliminar)]
+                st.success("¡Visita eliminada correctamente!")
+                st.rerun()
+
     else:
         st.info("Aún no tienes visitas registradas. Comienza guardando tu primera visita arriba.")
 
@@ -275,6 +286,19 @@ elif mode == "lider":
                 df_bitacora = df_bitacora[df_bitacora["Director"] == d_selected]
 
             st.dataframe(df_bitacora[["Fecha", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"]], use_container_width=True)
+
+            with st.expander("🗑️ Borrado de Emergencia (Consola de Líder)"):
+                opciones_lider = {
+                    f"{r['Fecha']} | {r['Director']} -> {r['Nombre Cliente']}": r['ID']
+                    for _, r in df_bitacora.iterrows()
+                }
+                if opciones_lider:
+                    visita_lider_borrar = st.selectbox("Selecciona la visita a eliminar:", list(opciones_lider.keys()))
+                    if st.button("🗑️ Eliminar Registro Seleccionado"):
+                        id_del = opciones_lider[visita_lider_borrar]
+                        st.session_state.records = st.session_state.records[st.session_state.records["ID"].astype(str) != str(id_del)]
+                        st.success("¡Registro eliminado!")
+                        st.rerun()
         else:
             st.info("Aún no hay visitas registradas por el equipo.")
 
