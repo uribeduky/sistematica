@@ -40,7 +40,6 @@ LISTA_DIRECTORES = [
     "Nicolás Quintero"
 ]
 
-# Configuración del modelo por defecto
 DEFAULT_CONFIG = {
     "p_presencial": 1.0,
     "p_virtual": 0.6,
@@ -61,12 +60,15 @@ def load_data():
         df = conn.read(ttl=0)
         if df is None or df.empty:
             return pd.DataFrame(columns=["ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"])
+        # Asegurar tipos de columnas
+        df["ID"] = df["ID"].astype(str)
         return df
     except Exception:
         return pd.DataFrame(columns=["ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"])
 
 def save_data(df):
-    conn.update(data=df)
+    # Guardar asegurando que no pase como operación no soportada
+    conn.update(worksheet="Sheet1", data=df)
 
 # Capturar parámetros de la URL para separar accesos (Links)
 query_params = st.query_params
@@ -132,7 +134,7 @@ if mode == "comercial":
             st.warning("⚠️ Por favor ingresa el Nombre del Cliente antes de guardar.")
         else:
             mes_str = fecha_visita.strftime("%Y-%m")
-            record_id = int(datetime.datetime.now().timestamp() * 1000)
+            record_id = str(int(datetime.datetime.now().timestamp() * 1000))
             new_row = pd.DataFrame([{
                 "ID": record_id,
                 "Fecha": str(fecha_visita),
@@ -180,11 +182,11 @@ if mode == "comercial":
         )
         
         if st.button("🔄 Aplicar Cambios / Guardar Eliminaciones"):
-            ids_mantenidos = edited_df["ID"].tolist()
+            ids_mantenidos = edited_df["ID"].astype(str).tolist()
             new_global_df = records_df[
                 (records_df["Director"] != selected_director) | 
                 (records_df["Mes_Año"] != selected_mes) | 
-                (records_df["ID"].isin(ids_mantenidos))
+                (records_df["ID"].astype(str).isin(ids_mantenidos))
             ]
             save_data(new_global_df)
             st.success("¡Base de datos persistente actualizada correctamente!")
@@ -261,8 +263,8 @@ elif mode == "lider":
             )
 
             if st.button("🗑️ Confirmar Eliminaciones / Cambios (Líder)"):
-                ids_mantenidos = edited_lider["ID"].tolist()
-                new_df = records_df[records_df["ID"].isin(ids_mantenidos)]
+                ids_mantenidos = edited_lider["ID"].astype(str).tolist()
+                new_df = records_df[records_df["ID"].astype(str).isin(ids_mantenidos)]
                 save_data(new_df)
                 st.success("¡Base de datos persistente actualizada!")
                 st.rerun()
