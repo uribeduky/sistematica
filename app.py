@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import datetime
-import gspread
 
 # Configuration
 st.set_page_config(
@@ -52,54 +51,26 @@ DEFAULT_CONFIG = {
 if "config" not in st.session_state:
     st.session_state.config = DEFAULT_CONFIG
 
-# URL del Google Sheet
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1c_3WF_RyzgtsHyr6MlPnVGYFvBfjveUIKCe6RRQdAws/edit?gid=0#gid=0"
+# URL pública de consulta CSV de Google Sheet
+SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1c_3WF_RyzgtsHyr6MlPnVGYFvBfjveUIKCe6RRQdAws/export?format=csv"
 
-# Conexión directa a Google Sheet mediante gspread
-@st.cache_resource
-def get_gsheet_client():
-    return gspread.public_client()
-
-def get_worksheet():
-    client = get_gsheet_client()
-    sh = client.open_by_url(SHEET_URL)
-    return sh.sheet1
+# Inicializar sesión local si no existe
+if "records" not in st.session_state:
+    st.session_state.records = pd.DataFrame(columns=[
+        "ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"
+    ])
 
 def load_data():
     try:
-        ws = get_worksheet()
-        data = ws.get_all_records()
-        df = pd.DataFrame(data)
-        if df.empty or not {"ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"}.issubset(df.columns):
-            return pd.DataFrame(columns=["ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"])
-        df["ID"] = df["ID"].astype(str)
-        return df
+        df_sheet = pd.read_csv(SHEET_CSV_URL)
+        if not df_sheet.empty and "ID" in df_sheet.columns:
+            df_sheet["ID"] = df_sheet["ID"].astype(str)
+            combined = pd.concat([df_sheet, st.session_state.records], ignore_index=True).drop_duplicates(subset=["ID"], keep="last")
+            return combined
     except Exception:
-        # Alternativa de lectura directa mediante pandas CSV
-        try:
-            csv_url = "https://docs.google.com/spreadsheets/d/1c_3WF_RyzgtsHyr6MlPnVGYFvBfjveUIKCe6RRQdAws/export?format=csv"
-            df = pd.read_csv(csv_url)
-            df["ID"] = df["ID"].astype(str)
-            return df
-        except Exception:
-            return pd.DataFrame(columns=["ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"])
+        pass
+    return st.session_state.records
 
-def save_data(df):
-    try:
-        ws = get_worksheet()
-        ws.clear()
-        # Asegurar encabezados y formato de lista
-        header = ["ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"]
-        df_export = df[header].copy()
-        ws.update([header] + df_export.values.tolist())
-    except Exception as e:
-        st.error(f"Error al guardar en Google Sheets: {e}")
-
-# Capturar parámetros de la URL para separar accesos (Links)
-query_params = st.query_params
-mode = query_params.get("modo", "comercial")
-
-# Función de cálculo de métricas por mes
 def compute_metrics(df, config):
     if df.empty:
         return pd.DataFrame()
@@ -127,6 +98,8 @@ def compute_metrics(df, config):
 
     return summary
 
+query_params = st.query_params
+mode = query_params.get("modo", "comercial")
 records_df = load_data()
 
 # =============================================================
@@ -170,9 +143,8 @@ if mode == "comercial":
                 "Canal": canal,
                 "Cierre": cierre
             }])
-            updated_df = pd.concat([records_df, new_row], ignore_index=True)
-            save_data(updated_df)
-            st.success(f"¡Visita a '{nombre_cliente}' registrada de forma permanente!")
+            st.session_state.records = pd.concat([st.session_state.records, new_row], ignore_index=True)
+            st.success(f"¡Visita a '{nombre_cliente}' guardada exitosamente!")
             st.rerun()
 
     st.divider()
@@ -197,25 +169,8 @@ if mode == "comercial":
             m4.metric("Tasa Conversión", f"{row['Tasa_Conversion']*100:.1f}%")
             m5.metric("IEP Comercial", f"{row['IEP']*100:.1f}%", delta=row["Estatus"])
         
-        st.subheader("🗑️ Mis Visitas Registradas (Gestionar / Borrar)")
-        
-        edited_df = st.data_editor(
-            user_records_month[["ID", "Fecha", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"]],
-            num_rows="dynamic",
-            use_container_width=True,
-            key="editor_director"
-        )
-        
-        if st.button("🔄 Aplicar Cambios / Guardar Eliminaciones"):
-            ids_mantenidos = edited_df["ID"].astype(str).tolist()
-            new_global_df = records_df[
-                (records_df["Director"] != selected_director) | 
-                (records_df["Mes_Año"] != selected_mes) | 
-                (records_df["ID"].astype(str).isin(ids_mantenidos))
-            ]
-            save_data(new_global_df)
-            st.success("¡Base de datos persistente actualizada correctamente!")
-            st.rerun()
+        st.subheader("📋 Mis Visitas Registradas")
+        st.dataframe(user_records_month[["Fecha", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"]], use_container_width=True)
     else:
         st.info("Aún no tienes visitas registradas. Comienza guardando tu primera visita arriba.")
 
@@ -226,7 +181,7 @@ elif mode == "lider":
     st.title("👑 Consola de Liderazgo Comercial - Asset Management")
     st.caption("Consolidador de rendimiento global y calibración del modelo IEP.")
 
-    tab1, tab2, tab3 = st.tabs(["📊 Dashboard de Rendimiento Global", "📋 Detalle y Borrado de Visitas", "⚙️ Configuración de Parámetros"])
+    tab1, tab2, tab3 = st.tabs(["📊 Dashboard de Rendimiento Global", "📋 Detalle de Visitas por Cliente", "⚙️ Configuración de Parámetros"])
 
     with tab1:
         if not records_df.empty:
@@ -265,7 +220,7 @@ elif mode == "lider":
             st.info("No hay registros en la base de datos para mostrar acumulados.")
 
     with tab2:
-        st.subheader("🔎 Bitácora Detallada de Visitas Comercial del Equipo (Edición Líder)")
+        st.subheader("🔎 Bitácora Detallada de Visitas Comercial del Equipo")
         if not records_df.empty:
             meses_bitacora = sorted(records_df["Mes_Año"].astype(str).unique(), reverse=True)
             col_m1, col_m2 = st.columns([1, 1])
@@ -280,19 +235,7 @@ elif mode == "lider":
             if d_selected != "Todos":
                 df_bitacora = df_bitacora[df_bitacora["Director"] == d_selected]
 
-            edited_lider = st.data_editor(
-                df_bitacora[["ID", "Fecha", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"]],
-                num_rows="dynamic",
-                use_container_width=True,
-                key="editor_lider"
-            )
-
-            if st.button("🗑️ Confirmar Eliminaciones / Cambios (Líder)"):
-                ids_mantenidos = edited_lider["ID"].astype(str).tolist()
-                new_df = records_df[records_df["ID"].astype(str).isin(ids_mantenidos)]
-                save_data(new_df)
-                st.success("¡Base de datos persistente actualizada!")
-                st.rerun()
+            st.dataframe(df_bitacora[["Fecha", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"]], use_container_width=True)
         else:
             st.info("Aún no hay visitas registradas por el equipo.")
 
