@@ -54,7 +54,7 @@ if "config" not in st.session_state:
     st.session_state.config = DEFAULT_CONFIG
 
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1c_3WF_RyzgtsHyr6MlPnVGYFvBfjveUIKCe6RRQdAws/export?format=csv"
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyOpdCRp58MN111WxCj4jqCw2FnyNA2VeKSVw7ZTXO37by-S_z2x4SuNPwLXY2-UAWTtw/exec"
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyhYm5AeQ3M4Ygz0Z-F-W41oA9Lj3nJ6JVFXmI_zy75fJ93GcPK5IY25t-IpEjibC0syA/exec"
 
 if "records" not in st.session_state:
     st.session_state.records = pd.DataFrame(columns=[
@@ -204,22 +204,33 @@ if mode == "comercial":
             m5.metric("IEP Comercial", f"{row['IEP']*100:.1f}%", delta=row["Estatus"])
         
         st.divider()
-        st.subheader("📋 Mis Visitas Registradas")
-        st.dataframe(user_records_month[["Fecha", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"]], use_container_width=True)
+        st.subheader("📋 Mis Visitas Registradas (Gestión Directa)")
+        st.caption("💡 *Para borrar una visita, marca la casilla de la izquierda en la tabla o selecciona la fila y presiona la tecla Supr/Delete.*")
 
-        # SECCIÓN DE BORRADO DE REGISTROS
-        with st.expander("🗑️ Borrar o Eliminar una Visita Registrada"):
-            opciones_borrar = {
-                f"{r['Fecha']} | {r['Nombre Cliente']} ({r['Canal']})": r['ID'] 
-                for _, r in user_records_month.iterrows()
-            }
-            visita_a_borrar = st.selectbox("Selecciona la visita que deseas eliminar:", list(opciones_borrar.keys()))
-            
-            if st.button("🗑️ Confirmar Eliminar Visita"):
-                id_eliminar = opciones_borrar[visita_a_borrar]
-                st.session_state.records = st.session_state.records[st.session_state.records["ID"].astype(str) != str(id_eliminar)]
-                st.success("¡Visita eliminada correctamente!")
-                st.rerun()
+        # TABLA INTERACTIVA CON SELECCIÓN
+        df_display = user_records_month[["ID", "Fecha", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"]].copy()
+        
+        # Editor interactivo con borrado de filas habilitado
+        edited_df = st.data_editor(
+            df_display,
+            num_rows="dynamic",
+            use_container_width=True,
+            column_config={
+                "ID": None # Ocultamos el ID para limpiar la vista
+            },
+            key="editor_usuario"
+        )
+
+        # Detectar si se eliminaron filas
+        if len(edited_df) < len(df_display):
+            ids_mantenidos = edited_df["ID"].astype(str).tolist()
+            st.session_state.records = records_df[
+                (records_df["Director"] != selected_director) | 
+                (records_df["Mes_Año"] != selected_mes) | 
+                (records_df["ID"].astype(str).isin(ids_mantenidos))
+            ]
+            st.success("¡Visita eliminada correctamente!")
+            st.rerun()
 
     else:
         st.info("Aún no tienes visitas registradas. Comienza guardando tu primera visita arriba.")
@@ -285,20 +296,21 @@ elif mode == "lider":
             if d_selected != "Todos":
                 df_bitacora = df_bitacora[df_bitacora["Director"] == d_selected]
 
-            st.dataframe(df_bitacora[["Fecha", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"]], use_container_width=True)
+            st.caption("💡 *Para eliminar una visita como Líder, selecciona la casilla de la fila y elimínala directamente.*")
+            
+            edited_lider = st.data_editor(
+                df_bitacora[["ID", "Fecha", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"]],
+                num_rows="dynamic",
+                use_container_width=True,
+                column_config={"ID": None},
+                key="editor_lider_interactive"
+            )
 
-            with st.expander("🗑️ Borrado de Emergencia (Consola de Líder)"):
-                opciones_lider = {
-                    f"{r['Fecha']} | {r['Director']} -> {r['Nombre Cliente']}": r['ID']
-                    for _, r in df_bitacora.iterrows()
-                }
-                if opciones_lider:
-                    visita_lider_borrar = st.selectbox("Selecciona la visita a eliminar:", list(opciones_lider.keys()))
-                    if st.button("🗑️ Eliminar Registro Seleccionado"):
-                        id_del = opciones_lider[visita_lider_borrar]
-                        st.session_state.records = st.session_state.records[st.session_state.records["ID"].astype(str) != str(id_del)]
-                        st.success("¡Registro eliminado!")
-                        st.rerun()
+            if len(edited_lider) < len(df_bitacora):
+                ids_mantenidos = edited_lider["ID"].astype(str).tolist()
+                st.session_state.records = records_df[records_df["ID"].astype(str).isin(ids_mantenidos)]
+                st.success("¡Registro eliminado por la administración!")
+                st.rerun()
         else:
             st.info("Aún no hay visitas registradas por el equipo.")
 
