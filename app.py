@@ -52,11 +52,8 @@ DEFAULT_CONFIG = {
 if "config" not in st.session_state:
     st.session_state.config = DEFAULT_CONFIG
 
-# URL pública de consulta CSV de tu Google Sheet
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1c_3WF_RyzgtsHyr6MlPnVGYFvBfjveUIKCe6RRQdAws/export?format=csv"
-
-# PEGA AQUÍ LA URL DE TU APPS SCRIPT WEB APP (del Paso A):
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycby3KW1Fq_J0IDwCjcHd9RxY7w6ig6LHkPcxq9EIqpIfDjc56L6Zf_4cfexMqP7wlHJbmw/exec"
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycby3KW1Fq_J0IDwCjcHd9RxY7w6ig6LHkPcxq9EIqpIfDjc56L6Zf_4cfexMqp7wlHJbmw/exec"
 
 if "records" not in st.session_state:
     st.session_state.records = pd.DataFrame(columns=[
@@ -74,34 +71,51 @@ def load_data():
         pass
     return st.session_state.records
 
-# Función con la nueva REGLA COMERCIAL ESTRICATA de cumplimiento
+# -------------------------------------------------------------
+# CÁLCULO DE MÉTRICAS IDÉNTICO AL MODELO EXCEL (.XLS)
+# -------------------------------------------------------------
 def compute_metrics(df, config):
     if df.empty:
         return pd.DataFrame()
     
     df_calc = df.copy()
-    df_calc["Puntos_Canal"] = df_calc["Canal"].map({"Presencial": config["p_presencial"], "Virtual": config["p_virtual"]})
-    df_calc["Puntos_Tipo"] = df_calc["Tipo Cliente"].map({"Nuevo (Captación)": config["p_captacion"], "Existente (Mantenimiento)": config["p_mantenimiento"]})
-    df_calc["Puntos_Esfuerzo"] = df_calc["Puntos_Canal"] * df_calc["Puntos_Tipo"]
+    df_calc["Es_Presencial"] = df_calc["Canal"].apply(lambda x: 1 if str(x).strip() == "Presencial" else 0)
+    df_calc["Es_Virtual"] = df_calc["Canal"].apply(lambda x: 1 if str(x).strip() == "Virtual" else 0)
+    df_calc["Es_Nuevo"] = df_calc["Tipo Cliente"].apply(lambda x: 1 if "Nuevo" in str(x) or "Captación" in str(x) else 0)
+    df_calc["Es_Existente"] = df_calc["Tipo Cliente"].apply(lambda x: 1 if "Existente" in str(x) or "Mantenimiento" in str(x) else 0)
     df_calc["Es_Cierre"] = df_calc["Cierre"].apply(lambda x: 1 if str(x).strip().lower() in ["sí", "si"] else 0)
 
     summary = df_calc.groupby("Director").agg(
         Visitas_Totales=("Fecha", "count"),
-        Visitas_Presenciales=("Canal", lambda x: (x == "Presencial").sum()),
-        Visitas_Virtuales=("Canal", lambda x: (x == "Virtual").sum()),
-        Visitas_Nuevos=("Tipo Cliente", lambda x: (x == "Nuevo (Captación)").sum()),
-        Visitas_Existentes=("Tipo Cliente", lambda x: (x == "Existente (Mantenimiento)").sum()),
-        Puntos_Esfuerzo=("Puntos_Esfuerzo", "sum"),
+        Visitas_Presenciales=("Es_Presencial", "sum"),
+        Visitas_Virtuales=("Es_Virtual", "sum"),
+        Visitas_Nuevos=("Es_Nuevo", "sum"),
+        Visitas_Existentes=("Es_Existente", "sum"),
         Cierres=("Es_Cierre", "sum")
     ).reset_index()
 
+    # Puntos por Canal (Presencial + Virtual)
+    puntos_canal = (summary["Visitas_Presenciales"] * config["p_presencial"]) + (summary["Visitas_Virtuales"] * config["p_virtual"])
+    
+    # Mezcla de Cliente (Ponderación Captación vs Mantenimiento)
+    puntos_tipo = (summary["Visitas_Nuevos"] * config["p_captacion"]) + (summary["Visitas_Existentes"] * config["p_mantenimiento"])
+    mezcla_cliente = puntos_tipo / summary["Visitas_Totales"].replace(0, 1)
+
+    # Fórmula XLS: Puntos Esfuerzo = Puntos Canal * Mezcla Cliente
+    summary["Puntos_Esfuerzo"] = (puntos_canal * mezcla_cliente).round(1)
+    
+    # Factor de Actividad (Top de 1.0 al alcanzar los 15 puntos)
     summary["Factor_Actividad"] = summary["Puntos_Esfuerzo"].apply(lambda pts: min(1.0, pts / config["umbral_puntos"]))
+    
+    # Tasa de Conversión Real
     summary["Tasa_Conversion"] = summary["Cierres"] / summary["Visitas_Totales"].replace(0, 1)
+    
+    # IEP = Tasa de Conversión * Factor de Actividad
     summary["IEP"] = summary["Tasa_Conversion"] * summary["Factor_Actividad"]
     
-    # REGLA ESTRICATA: Requiere 100% de Factor de Actividad (>=15 pts) Y IEP >= 15%
+    # Estatus vs Objetivo (Exige alcanzar los 15 pts de esfuerzo y el 15% de IEP)
     def evaluar_cumplimiento(row):
-        if row["Factor_Actividad"] < 1.0:
+        if row["Puntos_Esfuerzo"] < config["umbral_puntos"]:
             return "🔴 ESFUERZO INSUFICIENTE"
         elif row["IEP"] >= config["iep_objetivo"]:
             return "🟢 CUMPLE IEP"
@@ -158,7 +172,6 @@ if mode == "comercial":
                 "Cierre": cierre
             }
             
-            # Enviar a Google Sheets vía Webhook Script
             if WEBAPP_URL and "http" in WEBAPP_URL:
                 try:
                     requests.post(WEBAPP_URL, json=payload, timeout=5)
@@ -176,7 +189,7 @@ if mode == "comercial":
                 "Cierre": cierre
             }])
             st.session_state.records = pd.concat([st.session_state.records, new_row], ignore_index=True)
-            st.success(f"¡Visita a '{nombre_cliente}' registrada de forma permanente!")
+            st.success(f"¡Visita a '{nombre_cliente}' registrada exitosamente!")
             st.rerun()
 
     st.divider()
