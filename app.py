@@ -54,7 +54,7 @@ if "config" not in st.session_state:
     st.session_state.config = DEFAULT_CONFIG
 
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1c_3WF_RyzgtsHyr6MlPnVGYFvBfjveUIKCe6RRQdAws/export?format=csv"
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzUkbE7go0FZZtlSnbBQWEwO3yU9ROiaYH6IjVImDb0uZpqwBj6C6vC80in0wcahscMgw/exec"
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycby0pdCRp58MN111WxCj4jqCw2FnyNA2VeKSVw7ZTX037by-S_z2x4SuNPwLXY2-UAWTtw/exec"
 
 if "deleted_ids" not in st.session_state:
     st.session_state.deleted_ids = set()
@@ -71,12 +71,10 @@ def delete_from_google_sheet(record_id):
 
 def load_data():
     try:
-        # Cargar siempre la versión más reciente del CSV descartando la caché de la URL
         timestamp_url = f"{SHEET_CSV_URL}&t={int(datetime.datetime.now().timestamp())}"
         df_sheet = pd.read_csv(timestamp_url)
         if not df_sheet.empty and "ID" in df_sheet.columns:
             df_sheet["ID"] = df_sheet["ID"].astype(str)
-            # Filtrar los IDs eliminados recientemete
             if st.session_state.deleted_ids:
                 df_sheet = df_sheet[~df_sheet["ID"].isin(st.session_state.deleted_ids)]
             return df_sheet
@@ -115,7 +113,7 @@ def compute_metrics(df, config):
     
     def evaluar_cumplimiento(row):
         if row["Puntos_Esfuerzo"] < config["umbral_puntos"]:
-            return "🔴 ESFUERZO INSUFICIENTE"
+            return "ESFUERZO INSUFICIENTE"
         elif row["IEP"] >= config["iep_objetivo"]:
             return "🟢 CUMPLE IEP"
         else:
@@ -203,32 +201,26 @@ if mode == "comercial":
             m2.metric("Puntos de Esfuerzo", f"{row['Puntos_Esfuerzo']:.1f} / {st.session_state.config['umbral_puntos']}")
             m3.metric("Factor Actividad", f"{row['Factor_Actividad']*100:.0f}%")
             m4.metric("Tasa Conversión", f"{row['Tasa_Conversion']*100:.1f}%")
-            m5.metric("IEP Comercial", f"{row['IEP']*100:.1f}%", delta=row["Estatus"])
+            m5.metric("IEP Comercial", f"{row['IEP']*100:.1f}%")
         
         st.divider()
         st.subheader("📋 Mis Visitas Registradas")
 
-        # TABLA DE VISITAS CON OPCIÓN DE BORRADO INDIVIDUAL
         df_display = user_records_month[["ID", "Fecha", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"]].copy()
-        
-        # Muestra la lista limpia de visitas
         st.dataframe(df_display[["Fecha", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"]], use_container_width=True)
 
-        # Módulo de borrado limpio por selección de cliente
-        with st.expander("🗑️ Eliminar una visita de la base de datos"):
+        with st.expander("🗑️ Eliminar una visita registrada"):
             dict_opciones = {
                 f"{r['Fecha']} - {r['Nombre Cliente']} ({r['Canal']})": r['ID']
                 for _, r in df_display.iterrows()
             }
-            seleccion_borrar = st.selectbox("Selecciona la visita que deseas eliminar permanentemente:", list(dict_opciones.keys()))
+            seleccion_borrar = st.selectbox("Selecciona la visita que deseas eliminar:", list(dict_opciones.keys()))
             
-            if st.button("🔴 Confirmar y Eliminar de Google Sheets"):
+            if st.button("🗑️ Confirmar y Eliminar Visita"):
                 id_a_borrar = dict_opciones[seleccion_borrar]
-                # 1. Borrar en Google Sheets físicamente
                 delete_from_google_sheet(id_a_borrar)
-                # 2. Registrar ID borrado localmente
                 st.session_state.deleted_ids.add(str(id_a_borrar))
-                st.success("¡Visita eliminada permanentemente de Google Sheets!")
+                st.success("¡Visita eliminada correctamente!")
                 st.rerun()
 
     else:
@@ -297,18 +289,18 @@ elif mode == "lider":
 
             st.dataframe(df_bitacora[["Fecha", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"]], use_container_width=True)
 
-            with st.expander("🗑️ Eliminar un registro de la base de datos (Administración)"):
+            with st.expander("🗑️ Eliminar un registro de la base de datos"):
                 dict_lider = {
                     f"{r['Fecha']} | {r['Director']} -> {r['Nombre Cliente']}": r['ID']
                     for _, r in df_bitacora.iterrows()
                 }
                 if dict_lider:
                     sel_lider = st.selectbox("Selecciona la visita a borrar:", list(dict_lider.keys()))
-                    if st.button("🔴 Eliminar Definitivamente de Google Sheets"):
+                    if st.button("🗑️ Eliminar Registro"):
                         id_del = dict_lider[sel_lider]
                         delete_from_google_sheet(id_del)
                         st.session_state.deleted_ids.add(str(id_del))
-                        st.success("¡Registro eliminado permanentemente!")
+                        st.success("¡Registro eliminado correctamente!")
                         st.rerun()
         else:
             st.info("Aún no hay visitas registradas por el equipo.")
