@@ -56,31 +56,45 @@ if "config" not in st.session_state:
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1c_3WF_RyzgtsHyr6MlPnVGYFvBfjveUIKCe6RRQdAws/export?format=csv"
 WEBAPP_URL = "https://script.google.com/macros/s/AKfycby0pdCRp58MN111WxCj4jqCw2FnyNA2VeKSVw7ZTX037by-S_z2x4SuNPwLXY2-UAWTtw/exec"
 
+if "local_records" not in st.session_state:
+    st.session_state.local_records = pd.DataFrame(columns=[
+        "ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"
+    ])
+
 if "deleted_ids" not in st.session_state:
     st.session_state.deleted_ids = set()
 
-def delete_from_google_sheet(record_id):
+def send_to_google_sheet(params):
     try:
-        params = {"action": "delete", "ID": str(record_id)}
         query_string = urllib.parse.urlencode(params)
         full_url = f"{WEBAPP_URL}?{query_string}"
         req = urllib.request.Request(full_url, headers={'User-Agent': 'Mozilla/5.0'})
-        urllib.request.urlopen(req)
-    except Exception:
-        pass
+        with urllib.request.urlopen(req, timeout=8) as response:
+            return True
+    except Exception as e:
+        st.warning(f"⚠️ Aviso de sincronización: La visita se guardó localmente pero no se pudo enviar a Google Sheets ({e})")
+        return False
 
 def load_data():
+    df_sheet = pd.DataFrame(columns=["ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"])
     try:
         timestamp_url = f"{SHEET_CSV_URL}&t={int(datetime.datetime.now().timestamp())}"
         df_sheet = pd.read_csv(timestamp_url)
         if not df_sheet.empty and "ID" in df_sheet.columns:
             df_sheet["ID"] = df_sheet["ID"].astype(str)
-            if st.session_state.deleted_ids:
-                df_sheet = df_sheet[~df_sheet["ID"].isin(st.session_state.deleted_ids)]
-            return df_sheet
     except Exception:
         pass
-    return pd.DataFrame(columns=["ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"])
+
+    # Combinar registros del CSV con los ingresados en esta sesión local
+    if not st.session_state.local_records.empty:
+        df_sheet = pd.concat([df_sheet, st.session_state.local_records], ignore_index=True)
+    
+    if not df_sheet.empty and "ID" in df_sheet.columns:
+        df_sheet = df_sheet.drop_duplicates(subset=["ID"], keep="last")
+        if st.session_state.deleted_ids:
+            df_sheet = df_sheet[~df_sheet["ID"].isin(st.session_state.deleted_ids)]
+
+    return df_sheet
 
 def compute_metrics(df, config):
     if df.empty:
@@ -158,6 +172,20 @@ if mode == "comercial":
             mes_str = fecha_visita.strftime("%Y-%m")
             record_id = str(int(datetime.datetime.now().timestamp() * 1000))
             
+            # 1. Guardar de inmediato en la sesión local para actualización instantánea
+            new_row = pd.DataFrame([{
+                "ID": record_id,
+                "Fecha": str(fecha_visita),
+                "Mes_Año": mes_str,
+                "Director": selected_director,
+                "Nombre Cliente": nombre_cliente.strip(),
+                "Tipo Cliente": tipo_cliente,
+                "Canal": canal,
+                "Cierre": cierre
+            }])
+            st.session_state.local_records = pd.concat([st.session_state.local_records, new_row], ignore_index=True)
+
+            # 2. Enviar a Google Sheets
             params = {
                 "action": "add",
                 "ID": record_id,
@@ -169,14 +197,7 @@ if mode == "comercial":
                 "Canal": canal,
                 "Cierre": cierre
             }
-            
-            try:
-                query_string = urllib.parse.urlencode(params)
-                full_url = f"{WEBAPP_URL}?{query_string}"
-                req = urllib.request.Request(full_url, headers={'User-Agent': 'Mozilla/5.0'})
-                urllib.request.urlopen(req)
-            except Exception:
-                pass
+            send_to_google_sheet(params)
 
             st.success(f"¡Visita a '{nombre_cliente}' registrada exitosamente!")
             st.rerun()
@@ -218,8 +239,9 @@ if mode == "comercial":
             
             if st.button("🗑️ Confirmar y Eliminar Visita"):
                 id_a_borrar = dict_opciones[seleccion_borrar]
-                delete_from_google_sheet(id_a_borrar)
+                send_to_google_sheet({"action": "delete", "ID": str(id_a_borrar)})
                 st.session_state.deleted_ids.add(str(id_a_borrar))
+                st.session_state.local_records = st.session_state.local_records[st.session_state.local_records["ID"].astype(str) != str(id_a_borrar)]
                 st.success("¡Visita eliminada correctamente!")
                 st.rerun()
 
@@ -298,8 +320,9 @@ elif mode == "lider":
                     sel_lider = st.selectbox("Selecciona la visita a borrar:", list(dict_lider.keys()))
                     if st.button("🗑️ Eliminar Registro"):
                         id_del = dict_lider[sel_lider]
-                        delete_from_google_sheet(id_del)
+                        send_to_google_sheet({"action": "delete", "ID": str(id_del)})
                         st.session_state.deleted_ids.add(str(id_del))
+                        st.session_state.local_records = st.session_state.local_records[st.session_state.local_records["ID"].astype(str) != str(id_del)]
                         st.success("¡Registro eliminado correctamente!")
                         st.rerun()
         else:
