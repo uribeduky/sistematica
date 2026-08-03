@@ -63,16 +63,16 @@ if "local_records" not in st.session_state:
 if "deleted_ids" not in st.session_state:
     st.session_state.deleted_ids = set()
 
-def send_to_google_sheet(params):
+def send_to_google_sheet(payload):
     try:
-        response = requests.get(WEBAPP_URL, params=params, timeout=10, allow_redirects=True)
-        if response.status_code == 200:
+        response = requests.post(WEBAPP_URL, json=payload, timeout=10)
+        if response.status_code in [200, 302]:
             return True
         else:
-            st.warning(f"⚠️ Error al conectar con la base de datos (Código: {response.status_code})")
+            st.warning(f"⚠️ Alerta de sincronización (Código: {response.status_code})")
             return False
     except Exception as e:
-        st.error(f"⚠️ No se pudo enviar el registro: {e}")
+        st.error(f"⚠️ Error al conectar con Google Sheets: {e}")
         return False
 
 def load_data():
@@ -183,7 +183,7 @@ if mode == "comercial":
             }])
             st.session_state.local_records = pd.concat([st.session_state.local_records, new_row], ignore_index=True)
 
-            params = {
+            payload = {
                 "action": "add",
                 "ID": record_id,
                 "Fecha": str(fecha_visita),
@@ -194,7 +194,7 @@ if mode == "comercial":
                 "Canal": canal,
                 "Cierre": cierre
             }
-            send_to_google_sheet(params)
+            send_to_google_sheet(payload)
 
             st.success(f"¡Visita a '{nombre_cliente}' registrada exitosamente!")
             st.rerun()
