@@ -2,8 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import datetime
-import urllib.parse
-import urllib.request
+import requests
 
 # Configuration
 st.set_page_config(
@@ -66,13 +65,14 @@ if "deleted_ids" not in st.session_state:
 
 def send_to_google_sheet(params):
     try:
-        query_string = urllib.parse.urlencode(params)
-        full_url = f"{WEBAPP_URL}?{query_string}"
-        req = urllib.request.Request(full_url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=8) as response:
+        response = requests.get(WEBAPP_URL, params=params, timeout=10, allow_redirects=True)
+        if response.status_code == 200:
             return True
+        else:
+            st.warning(f"⚠️ Error al conectar con la base de datos (Código: {response.status_code})")
+            return False
     except Exception as e:
-        st.warning(f"⚠️ Aviso de sincronización: La visita se guardó localmente pero no se pudo enviar a Google Sheets ({e})")
+        st.error(f"⚠️ No se pudo enviar el registro: {e}")
         return False
 
 def load_data():
@@ -85,7 +85,6 @@ def load_data():
     except Exception:
         pass
 
-    # Combinar registros del CSV con los ingresados en esta sesión local
     if not st.session_state.local_records.empty:
         df_sheet = pd.concat([df_sheet, st.session_state.local_records], ignore_index=True)
     
@@ -172,7 +171,6 @@ if mode == "comercial":
             mes_str = fecha_visita.strftime("%Y-%m")
             record_id = str(int(datetime.datetime.now().timestamp() * 1000))
             
-            # 1. Guardar de inmediato en la sesión local para actualización instantánea
             new_row = pd.DataFrame([{
                 "ID": record_id,
                 "Fecha": str(fecha_visita),
@@ -185,7 +183,6 @@ if mode == "comercial":
             }])
             st.session_state.local_records = pd.concat([st.session_state.local_records, new_row], ignore_index=True)
 
-            # 2. Enviar a Google Sheets
             params = {
                 "action": "add",
                 "ID": record_id,
