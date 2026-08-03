@@ -53,7 +53,7 @@ if "config" not in st.session_state:
     st.session_state.config = DEFAULT_CONFIG
 
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1c_3WF_RyzgtsHyr6MlPnVGYFvBfjveUIKCe6RRQdAws/export?format=csv"
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycby0pdCRp58MN111WxCj4jqCw2FnyNA2VeKSVw7ZTX037by-S_z2x4SuNPwLXY2-UAWTtw/exec"
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzhbwqf2m-QkbiH4Wrx1vGgONjVQTOeV8reHUB_yPuym2Ss17aa_UZtQX3s-mrylWLLJw/exec"
 
 if "local_records" not in st.session_state:
     st.session_state.local_records = pd.DataFrame(columns=[
