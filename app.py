@@ -126,11 +126,11 @@ def compute_metrics(df, config):
     
     def evaluar_cumplimiento(row):
         if row["Puntos_Esfuerzo"] < config["umbral_puntos"]:
-            return "ESFUERZO INSUFICIENTE"
+            return "Por mejorar"
         elif row["IEP"] >= config["iep_objetivo"]:
-            return "🟢 CUMPLE IEP"
+            return "🟢"
         else:
-            return "🔴 BAJO OBJETIVO"
+            return "🔴"
 
     summary["Estatus"] = summary.apply(evaluar_cumplimiento, axis=1)
     return summary
