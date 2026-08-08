@@ -126,7 +126,7 @@ def compute_metrics(df, config):
     
     def evaluar_cumplimiento(row):
         if row["Puntos_Esfuerzo"] < config["umbral_puntos"]:
-            return "Por mejorar"
+            return "Working On"
         elif row["IEP"] >= config["iep_objetivo"]:
             return "🟢"
         else:
