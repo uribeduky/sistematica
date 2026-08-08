@@ -31,7 +31,7 @@ st.markdown("""
 
 # Directores
 LISTA_DIRECTORES = [
-    "Claudia Céspedez",
+    "Claudia Céspedes",
     "Claudia Lizarralde",
     "Gloria Lamus",
     "Karen Cortés",
