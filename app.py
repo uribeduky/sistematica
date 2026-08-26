@@ -259,7 +259,7 @@ if mode == "comercial":
             m5.metric("IEP Comercial", f"{row['IEP']*100:.1f}%")
             m6.metric("Total Cierres $MM", f"{format_cop_int(row['Total_Monto_COP_MM'])} MM")
 
-            # SECCIÓN DATA ANALYTICS INDIVIDUAL
+            # SECCIÓN DATA ANALYTICS INDIVIDUAL + RECOMENDACIÓN
             with st.expander("💡 Data Analytics", expanded=True):
                 u_visitas = len(user_records_month)
                 u_cierres = int(row["Cierres"])
@@ -286,6 +286,17 @@ if mode == "comercial":
                 c_i2.metric("Mix Presencialidad", f"{u_pct_pres:.0f}% Presencial")
                 c_i3.metric("Foco Captación (Nuevos)", f"{u_pct_nuevos:.0f}% Nuevo")
                 c_i4.metric("Tu Producto Estrella", u_top_prod)
+
+                st.markdown("---")
+                st.markdown("##### 📌 **Recomendación Comercial & Autocontrol**")
+                
+                u_pts = row["Puntos_Esfuerzo"]
+                if u_pts < st.session_state.config["umbral_puntos"]:
+                    st.info(f"💡 **Recomendación Comercial:** Tu nivel de esfuerzo actual ({u_pts:.1f} pts) está por debajo del umbral objetivo ({st.session_state.config['umbral_puntos']} pts). Agendar reuniones presenciales adicionales o enfocar la semana en prospección de clientes nuevos te ayudará a alcanzar la meta rápidamente.")
+                elif u_pct_nuevos < 40:
+                    st.warning("💡 **Recomendación Comercial:** Tu agenda está inclinada principalmente hacia mantenimiento de clientes existentes. Para maximizar tus puntos de esfuerzo, intenta balancear tus llamadas integrando nuevas cuentas de captación.")
+                else:
+                    st.success("💡 **Recomendación Comercial:** Excelente balance de esfuerzo y prospección. Mantener el ritmo de conversión actual para consolidar el IEP del período.")
 
         st.divider()
         st.subheader("📋 Mis Visitas Registradas")
@@ -374,7 +385,7 @@ elif mode == "lider":
                 st.divider()
 
                 # SECCIÓN DE DATA ANALYTICS GLOBAL
-                with st.expander("💡 Data Analytics Executive & Analytics Comercial", expanded=True):
+                with st.expander("💡 Data Analytics", expanded=True):
                     tot_visitas = len(records_month)
                     tot_cierres = int(global_summary["Cierres"].sum())
                     tot_monto = global_summary["Total_Monto_COP_MM"].sum()
@@ -402,7 +413,7 @@ elif mode == "lider":
                     ins_col4.metric("Producto Líder en Volumen", top_prod_str)
 
                     st.markdown("---")
-                    st.markdown("##### 📌 **Data Analytics**")
+                    st.markdown("##### 📌 **Recomendación Comercial & Coaching Tip**")
                     
                     pts_prom = global_summary['Puntos_Esfuerzo'].mean()
                     if pts_prom < st.session_state.config["umbral_puntos"]:
