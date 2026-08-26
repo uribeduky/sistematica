@@ -258,7 +258,46 @@ if mode == "comercial":
             m4.metric("Tasa Conversión", f"{row['Tasa_Conversion']*100:.1f}%")
             m5.metric("IEP Comercial", f"{row['IEP']*100:.1f}%")
             m6.metric("Total Cierres $MM", f"{format_cop_int(row['Total_Monto_COP_MM'])} MM")
-        
+
+            # SECCIÓN DATA ANALYTICS INDIVIDUAL PARA CADA DIRECTOR
+            with st.expander("💡 Data Analytics Individual", expanded=True):
+                u_visitas = len(user_records_month)
+                u_cierres = int(row["Cierres"])
+                u_monto = row["Total_Monto_COP_MM"]
+
+                u_ticket_prom = (u_monto / u_cierres) if u_cierres > 0 else 0
+                
+                u_pres = len(user_records_month[user_records_month["Canal"].astype(str).str.strip() == "Presencial"])
+                u_pct_pres = (u_pres / u_visitas * 100) if u_visitas > 0 else 0
+
+                u_nuevos = len(user_records_month[user_records_month["Tipo Cliente"].astype(str).str.contains("Nuevo|Captación", case=False, na=False)])
+                u_pct_nuevos = (u_nuevos / u_visitas * 100) if u_visitas > 0 else 0
+
+                u_top_prod = "N/A"
+                if "Principal Producto" in user_records_month.columns:
+                    u_prod_vol = user_records_month.groupby("Principal Producto")["Monto COP$MM"].sum().reset_index()
+                    u_prod_vol = u_prod_vol[u_prod_vol["Principal Producto"].astype(str).str.strip() != ""]
+                    if not u_prod_vol.empty:
+                        u_top_row = u_prod_vol.sort_values(by="Monto COP$MM", ascending=False).iloc[0]
+                        u_top_prod = f"{u_top_row['Principal Producto']} ({format_cop_int(u_top_row['Monto COP$MM'])} MM)"
+
+                c_i1, c_i2, c_i3, c_i4 = st.columns(4)
+                c_i1.metric("Ticket Promedio / Cierre", f"{format_cop_int(u_ticket_prom)} MM")
+                c_i2.metric("Mix Presencialidad", f"{u_pct_pres:.0f}% Presencial")
+                c_i3.metric("Foco Captación (Nuevos)", f"{u_pct_nuevos:.0f}% Nuevo")
+                c_i4.metric("Tu Producto Estrella", u_top_prod)
+
+                st.markdown("---")
+                st.markdown("##### 📌 **Data Analytics & Recomendación de Autocontrol**")
+                
+                u_pts = row["Puntos_Esfuerzo"]
+                if u_pts < st.session_state.config["umbral_puntos"]:
+                    st.info(f"💡 **Sugerencia de Autocontrol:** Tu nivel de esfuerzo actual ({u_pts:.1f} pts) está por debajo del umbral objetivo ({st.session_state.config['umbral_puntos']} pts). Agendar 2 reuniones presenciales adicionales o enfocar la semana en prospección de clientes nuevos te ayudará a alcanzar la meta rápidamente.")
+                elif u_pct_nuevos < 40:
+                    st.warning("💡 **Sugerencia de Autocontrol:** Tu agenda está inclinada principalmente hacia mantenimiento de clientes existentes. Para maximizar tus puntos de esfuerzo, intenta balancear tus llamadas integrando nuevas cuentas de captación.")
+                else:
+                    st.success("💡 **Sugerencia de Autocontrol:** Excelente balance de esfuerzo y prospección. Mantener el ritmo de conversión actual para consolidar el IEP del período.")
+
         st.divider()
         st.subheader("📋 Mis Visitas Registradas")
 
@@ -345,8 +384,8 @@ elif mode == "lider":
 
                 st.divider()
 
-                # SECCIÓN DE ANALÍTICA & INSIGHTS EJECUTIVOS
-                with st.expander("💡 Insights Executive & Analytics Comercial", expanded=True):
+                # SECCIÓN DE DATA ANALYTICS GLOBAL
+                with st.expander("💡 Data Analytics Executive & Analytics Comercial", expanded=True):
                     tot_visitas = len(records_month)
                     tot_cierres = int(global_summary["Cierres"].sum())
                     tot_monto = global_summary["Total_Monto_COP_MM"].sum()
@@ -374,7 +413,7 @@ elif mode == "lider":
                     ins_col4.metric("Producto Líder en Volumen", top_prod_str)
 
                     st.markdown("---")
-                    st.markdown("##### 📌 **Diagnóstico de Gestión Comercial & Coaching Tip**")
+                    st.markdown("##### 📌 **Data Analytics**")
                     
                     pts_prom = global_summary['Puntos_Esfuerzo'].mean()
                     if pts_prom < st.session_state.config["umbral_puntos"]:
