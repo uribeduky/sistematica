@@ -66,7 +66,7 @@ if "config" not in st.session_state:
     st.session_state.config = DEFAULT_CONFIG
 
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1c_3WF_RyzgtsHyr6MlPnVGYFvBfjveUIKCe6RRQdAws/export?format=csv"
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxuqOdtUXk80ApD1L_6jZ9N0uMSkG1lIsH1GRjaG-tbUdYiLLmcyUxw3KC3uBQO4g1kOw/exec"
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxe5DtYRWvWtFCNvnJTXdtU45Un2GYcqkcUVwszoEr_vsisalLRZBhLwobTwu6zkkiDpg/exec"
 
 if "local_records" not in st.session_state:
     st.session_state.local_records = pd.DataFrame(columns=[
@@ -260,7 +260,6 @@ if mode == "comercial":
         
         st.dataframe(df_display_show, use_container_width=True)
 
-        # MÓDULO DE ACTUALIZACIÓN DE PRODUCTO / MONTO EN VISITAS HISTÓRICAS
         with st.expander("✏️ Actualizar Producto o Monto de una Visita Registrada"):
             dict_edit = {
                 f"{r['Fecha']} - {r['Nombre Cliente']} (Producto actual: {r['Principal Producto'] or 'Sin definir'})": r
@@ -288,7 +287,6 @@ if mode == "comercial":
                     }
                     send_to_google_sheet(edit_payload)
                     
-                    # Actualizar en memoria local
                     mask = st.session_state.local_records["ID"].astype(str) == str(record_to_edit['ID'])
                     if mask.any():
                         st.session_state.local_records.loc[mask, "Principal Producto"] = nuevo_prod
@@ -336,6 +334,47 @@ elif mode == "lider":
                 col_c.metric("IEP Promedio Equipo", f"{global_summary['IEP'].mean()*100:.1f}%")
                 col_d.metric("Cierres Totales Mes", int(global_summary["Cierres"].sum()))
                 col_e.metric("Volumen Captado Total", f"{format_cop_int(global_summary['Total_Monto_COP_MM'].sum())} MM")
+
+                st.divider()
+
+                # SECCIÓN DE ANALÍTICA & INSIGHTS EJECUTIVOS
+                with st.expander("💡 Insights Executive & Analytics Comercial", expanded=True):
+                    tot_visitas = len(records_month)
+                    tot_cierres = int(global_summary["Cierres"].sum())
+                    tot_monto = global_summary["Total_Monto_COP_MM"].sum()
+
+                    ticket_prom = (tot_monto / tot_cierres) if tot_cierres > 0 else 0
+                    
+                    num_pres = len(records_month[records_month["Canal"].str.strip() == "Presencial"]) if not records_month.empty else 0
+                    pct_pres = (num_pres / tot_visitas * 100) if tot_visitas > 0 else 0
+
+                    num_nuevos = len(records_month[records_month["Tipo Cliente"].str.contains("Nuevo|Captación", case=False, na=False)]) if not records_month.empty else 0
+                    pct_nuevos = (num_nuevos / tot_visitas * 100) if tot_visitas > 0 else 0
+
+                    top_prod_str = "N/A"
+                    if not records_month.empty and "Principal Producto" in records_month.columns:
+                        prod_vol = records_month.groupby("Principal Producto")["Monto COP$MM"].sum().reset_index()
+                        prod_vol = prod_vol[prod_vol["Principal Producto"].str.strip() != ""]
+                        if not prod_vol.empty:
+                            top_prod_row = prod_vol.sort_values(by="Monto COP$MM", ascending=False).iloc[0]
+                            top_prod_str = f"{top_prod_row['Principal Producto']} ({format_cop_int(top_prod_row['Monto COP$MM'])} MM)"
+
+                    ins_col1, ins_col2, ins_col3, ins_col4 = st.columns(4)
+                    ins_col1.metric("Ticket Promedio / Cierre", f"{format_cop_int(ticket_prom)} MM")
+                    ins_col2.metric("Mix Presencialidad", f"{pct_pres:.0f}% Presencial")
+                    ins_col3.metric("Foco Captación (Nuevos)", f"{pct_nuevos:.0f}% Dinero Nuevo")
+                    ins_col4.metric("Producto Líder en Volumen", top_prod_str)
+
+                    st.markdown("---")
+                    st.markdown("##### 📌 **Diagnóstico de Gestión Comercial & Coaching Tip**")
+                    
+                    pts_prom = global_summary['Puntos_Esfuerzo'].mean()
+                    if pts_prom < st.session_state.config["umbral_puntos"]:
+                        st.info(f"💡 **Foco Gerencial recomendado:** El volumen de esfuerzo del equipo ({pts_prom:.1f} pts) está por debajo del umbral objetivo ({st.session_state.config['umbral_puntos']} pts). Se sugiere incentivar una mayor intensidad de reuniones iniciales y visitas presenciales.")
+                    elif pct_nuevos < 40:
+                        st.warning("💡 **Foco Gerencial recomendado:** La mayor parte de la agenda está concentrada en mantenimiento de clientes existentes. Se recomienda motivar la prospección activa de dinero nuevo para aprovechar el multiplicador de captación (1.5x).")
+                    else:
+                        st.success("💡 **Foco Gerencial recomendado:** Excelente balance de esfuerzo y mezcla de prospectos. Mantener el ritmo de cierres en los productos foco.")
 
                 st.divider()
                 st.subheader(f"📋 Rendimiento del Equipo - Período {mes_global}")
