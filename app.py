@@ -11,7 +11,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Styling
+# Styling adaptativo para garantizar visibilidad en modo oscuro y claro
 st.markdown("""
 <style>
     .main-header {
@@ -20,11 +20,17 @@ st.markdown("""
         color: #1F497D;
         margin-bottom: 20px;
     }
-    .stMetric {
-        background-color: #F8FAFC;
-        padding: 12px;
-        border-radius: 6px;
-        border-left: 4px solid #1F497D;
+    div[data-testid="stMetric"] {
+        background-color: #F8FAFC !important;
+        padding: 12px !important;
+        border-radius: 8px !important;
+        border-left: 5px solid #1F497D !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+    }
+    div[data-testid="stMetric"] label, 
+    div[data-testid="stMetric"] div[data-testid="stMetricValue"],
+    div[data-testid="stMetric"] div[data-testid="stMetricDelta"] {
+        color: #1E293B !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -156,7 +162,9 @@ def compute_metrics(df, config):
 
 query_params = st.query_params
 mode = query_params.get("modo", "comercial")
-records_df = load_data()
+
+with st.spinner("Cargando datos comerciales..."):
+    records_df = load_data()
 
 # =============================================================
 # MODO 1: PORTAL COMERCIAL (Para Directores)
