@@ -31,13 +31,26 @@ st.markdown("""
 
 # Directores
 LISTA_DIRECTORES = [
-    "Claudia Céspedes",
+    "Claudia Céspedez",
     "Claudia Lizarralde",
     "Gloria Lamus",
     "Karen Cortés",
     "Laura Gómez",
     "María Camila León",
     "Nicolás Quintero"
+]
+
+# Productos
+LISTA_PRODUCTOS = [
+    "FIC Efectivo",
+    "FIC Monetario",
+    "FIC Multiplazo",
+    "Impulso",
+    "Impacto",
+    "Urbano",
+    "Skandia Cash",
+    "OFC",
+    "Crowd"
 ]
 
 DEFAULT_CONFIG = {
@@ -53,11 +66,11 @@ if "config" not in st.session_state:
     st.session_state.config = DEFAULT_CONFIG
 
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1c_3WF_RyzgtsHyr6MlPnVGYFvBfjveUIKCe6RRQdAws/export?format=csv"
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzhbwqf2m-QkbiH4Wrx1vGgONjVQTOeV8reHUB_yPuym2Ss17aa_UZtQX3s-mrylWLLJw/exec"
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwuQXNm7cz5C0Yanm5OfGQG1JvvXC4nXwVz7J6KyJeXpKwc020rtCMtRb6sLXRDhsy9GA/exec"
 
 if "local_records" not in st.session_state:
     st.session_state.local_records = pd.DataFrame(columns=[
-        "ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"
+        "ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre", "Principal Producto"
     ])
 
 if "deleted_ids" not in st.session_state:
@@ -72,16 +85,18 @@ def send_to_google_sheet(payload):
             st.warning(f"⚠️ Alerta de sincronización (Código: {response.status_code})")
             return False
     except Exception as e:
-        st.error(f"⚠️ Error al conectar con Google Sheets: {e}")
+        st.error(f"⚠️ Error al conectar con la base de datos: {e}")
         return False
 
 def load_data():
-    df_sheet = pd.DataFrame(columns=["ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"])
+    df_sheet = pd.DataFrame(columns=["ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre", "Principal Producto"])
     try:
         timestamp_url = f"{SHEET_CSV_URL}&t={int(datetime.datetime.now().timestamp())}"
         df_sheet = pd.read_csv(timestamp_url)
         if not df_sheet.empty and "ID" in df_sheet.columns:
             df_sheet["ID"] = df_sheet["ID"].astype(str)
+            if "Principal Producto" not in df_sheet.columns:
+                df_sheet["Principal Producto"] = ""
     except Exception:
         pass
 
@@ -124,15 +139,6 @@ def compute_metrics(df, config):
     summary["Tasa_Conversion"] = summary["Cierres"] / summary["Visitas_Totales"].replace(0, 1)
     summary["IEP"] = summary["Tasa_Conversion"] * summary["Factor_Actividad"]
     
-    def evaluar_cumplimiento(row):
-        if row["Puntos_Esfuerzo"] < config["umbral_puntos"]:
-            return "Working On"
-        elif row["IEP"] >= config["iep_objetivo"]:
-            return "🟢"
-        else:
-            return "🔴"
-
-    summary["Estatus"] = summary.apply(evaluar_cumplimiento, axis=1)
     return summary
 
 query_params = st.query_params
@@ -152,7 +158,7 @@ if mode == "comercial":
 
     st.subheader("📝 Registrar Nueva Visita Comercial")
     
-    col1, col2, col3, col4, col5 = st.columns([1.2, 2, 1.5, 1.2, 1.2])
+    col1, col2, col3, col4, col5, col6 = st.columns([1.1, 1.8, 1.4, 1.1, 1.4, 1.0])
     with col1:
         fecha_visita = st.date_input("Fecha de Visita", datetime.date.today())
     with col2:
@@ -162,7 +168,9 @@ if mode == "comercial":
     with col4:
         canal = st.selectbox("Canal de Reunión", ["Presencial", "Virtual"])
     with col5:
-        cierre = st.selectbox("¿Ocurrió Cierre / Venta?", ["No", "Sí"])
+        principal_producto = st.selectbox("Principal Producto", LISTA_PRODUCTOS)
+    with col6:
+        cierre = st.selectbox("¿Ocurrió Cierre?", ["No", "Sí"])
 
     if st.button("💾 Guardar Visita"):
         if not nombre_cliente.strip():
@@ -179,7 +187,8 @@ if mode == "comercial":
                 "Nombre Cliente": nombre_cliente.strip(),
                 "Tipo Cliente": tipo_cliente,
                 "Canal": canal,
-                "Cierre": cierre
+                "Cierre": cierre,
+                "Principal Producto": principal_producto
             }])
             st.session_state.local_records = pd.concat([st.session_state.local_records, new_row], ignore_index=True)
 
@@ -192,11 +201,12 @@ if mode == "comercial":
                 "Nombre_Cliente": nombre_cliente.strip(),
                 "Tipo_Cliente": tipo_cliente,
                 "Canal": canal,
-                "Cierre": cierre
+                "Cierre": cierre,
+                "Principal_Producto": principal_producto
             }
             send_to_google_sheet(payload)
 
-            st.success(f"¡Visita a '{nombre_cliente}' registrada exitosamente!")
+            st.success(f"¡Visita a '{nombre_cliente}' ({principal_producto}) registrada exitosamente!")
             st.rerun()
 
     st.divider()
@@ -224,12 +234,12 @@ if mode == "comercial":
         st.divider()
         st.subheader("📋 Mis Visitas Registradas")
 
-        df_display = user_records_month[["ID", "Fecha", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"]].copy()
-        st.dataframe(df_display[["Fecha", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"]], use_container_width=True)
+        df_display = user_records_month[["ID", "Fecha", "Nombre Cliente", "Tipo Cliente", "Canal", "Principal Producto", "Cierre"]].copy()
+        st.dataframe(df_display[["Fecha", "Nombre Cliente", "Tipo Cliente", "Canal", "Principal Producto", "Cierre"]], use_container_width=True)
 
         with st.expander("🗑️ Eliminar una visita registrada"):
             dict_opciones = {
-                f"{r['Fecha']} - {r['Nombre Cliente']} ({r['Canal']})": r['ID']
+                f"{r['Fecha']} - {r['Nombre Cliente']} ({r['Principal Producto']})": r['ID']
                 for _, r in df_display.iterrows()
             }
             seleccion_borrar = st.selectbox("Selecciona la visita que deseas eliminar:", list(dict_opciones.keys()))
@@ -257,11 +267,16 @@ elif mode == "lider":
     with tab1:
         if not records_df.empty:
             meses_globales = sorted(records_df["Mes_Año"].astype(str).unique(), reverse=True)
-            col_mes, col_spacer = st.columns([1, 2])
+            col_mes, col_dir_filter = st.columns([1, 1])
             with col_mes:
                 mes_global = st.selectbox("📅 Selecciona el Mes a Evaluar:", meses_globales)
+            with col_dir_filter:
+                dir_global_filter = st.selectbox("👤 Filtrar por Director:", ["Todos"] + LISTA_DIRECTORES)
             
             records_month = records_df[records_df["Mes_Año"] == mes_global]
+            if dir_global_filter != "Todos":
+                records_month = records_month[records_month["Director"] == dir_global_filter]
+
             global_summary = compute_metrics(records_month, st.session_state.config)
 
             if not global_summary.empty:
@@ -277,7 +292,7 @@ elif mode == "lider":
                 display_df = global_summary[[
                     "Director", "Visitas_Totales", "Visitas_Presenciales", "Visitas_Virtuales",
                     "Visitas_Nuevos", "Visitas_Existentes", "Puntos_Esfuerzo", "Factor_Actividad",
-                    "Cierres", "Tasa_Conversion", "IEP", "Estatus"
+                    "Cierres", "Tasa_Conversion", "IEP"
                 ]].copy()
 
                 display_df["Factor_Actividad"] = (display_df["Factor_Actividad"] * 100).round(1).astype(str) + "%"
@@ -286,7 +301,7 @@ elif mode == "lider":
 
                 st.dataframe(display_df, use_container_width=True)
             else:
-                st.info("No hay registros en el mes seleccionado.")
+                st.info("No hay registros en el mes o director seleccionado.")
         else:
             st.info("No hay registros en la base de datos para mostrar acumulados.")
 
@@ -306,7 +321,8 @@ elif mode == "lider":
             if d_selected != "Todos":
                 df_bitacora = df_bitacora[df_bitacora["Director"] == d_selected]
 
-            st.dataframe(df_bitacora[["Fecha", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre"]], use_container_width=True)
+            cols_show = ["Fecha", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Principal Producto", "Cierre"]
+            st.dataframe(df_bitacora[[c for c in cols_show if c in df_bitacora.columns]], use_container_width=True)
 
             with st.expander("🗑️ Eliminar un registro de la base de datos"):
                 dict_lider = {
