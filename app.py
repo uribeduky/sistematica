@@ -171,7 +171,7 @@ with st.spinner("Cargando datos comerciales..."):
 # =============================================================
 if mode == "comercial":
     st.title("👤 Portal Comercial - Registro de Visitas")
-    st.caption("Herramienta de autocontrol comercial para Directores de Asset Management.")
+    st.caption("Herramienta comercial para Directores de Asset Management.")
 
     col_dir, col_mes_filter = st.columns([2, 1])
     with col_dir:
@@ -259,7 +259,7 @@ if mode == "comercial":
             m5.metric("IEP Comercial", f"{row['IEP']*100:.1f}%")
             m6.metric("Total Cierres $MM", f"{format_cop_int(row['Total_Monto_COP_MM'])} MM")
 
-            # SECCIÓN DATA ANALYTICS INDIVIDUAL + RECOMENDACIÓN
+            # SECCIÓN DATA ANALYTICS INDIVIDUAL + RECOMENDACIÓN COMERCIAL
             with st.expander("💡 Data Analytics", expanded=True):
                 u_visitas = len(user_records_month)
                 u_cierres = int(row["Cierres"])
@@ -288,7 +288,7 @@ if mode == "comercial":
                 c_i4.metric("Tu Producto Estrella", u_top_prod)
 
                 st.markdown("---")
-                st.markdown("##### 📌 **Recomendación Comercial & Autocontrol**")
+                st.markdown("##### 📌 **Recomendación Comercial**")
                 
                 u_pts = row["Puntos_Esfuerzo"]
                 if u_pts < st.session_state.config["umbral_puntos"]:
@@ -413,15 +413,15 @@ elif mode == "lider":
                     ins_col4.metric("Producto Líder en Volumen", top_prod_str)
 
                     st.markdown("---")
-                    st.markdown("##### 📌 **Recomendación Comercial & Coaching Tip**")
+                    st.markdown("##### 📌 **Recomendación Comercial**")
                     
                     pts_prom = global_summary['Puntos_Esfuerzo'].mean()
                     if pts_prom < st.session_state.config["umbral_puntos"]:
-                        st.info(f"💡 **Foco Gerencial recomendado:** El volumen de esfuerzo del equipo ({pts_prom:.1f} pts) está por debajo del umbral objetivo ({st.session_state.config['umbral_puntos']} pts). Se sugiere incentivar una mayor intensidad de reuniones iniciales y visitas presenciales.")
+                        st.info(f"💡 **Recomendación Comercial:** El volumen de esfuerzo del equipo ({pts_prom:.1f} pts) está por debajo del umbral objetivo ({st.session_state.config['umbral_puntos']} pts). Se sugiere incentivar una mayor intensidad de reuniones iniciales y visitas presenciales.")
                     elif pct_nuevos < 40:
-                        st.warning("💡 **Foco Gerencial recomendado:** La mayor parte de la agenda está concentrada en mantenimiento de clientes existentes. Se recomienda motivar la prospección activa de clientes nuevos para aprovechar el multiplicador de captación (1.5x).")
+                        st.warning("💡 **Recomendación Comercial:** La mayor parte de la agenda está concentrada en mantenimiento de clientes existentes. Se recomienda motivar la prospección activa de clientes nuevos para aprovechar el multiplicador de captación (1.5x).")
                     else:
-                        st.success("💡 **Foco Gerencial recomendado:** Excelente balance de esfuerzo y mezcla de prospectos. Mantener el ritmo de cierres en los productos foco.")
+                        st.success("💡 **Recomendación Comercial:** Excelente balance de esfuerzo y mezcla de prospectos. Mantener el ritmo de cierres en los productos foco.")
 
                 st.divider()
                 st.subheader(f"📋 Rendimiento del Equipo - Período {mes_global}")
