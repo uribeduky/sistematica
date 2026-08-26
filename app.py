@@ -66,7 +66,7 @@ if "config" not in st.session_state:
     st.session_state.config = DEFAULT_CONFIG
 
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1c_3WF_RyzgtsHyr6MlPnVGYFvBfjveUIKCe6RRQdAws/export?format=csv"
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxOcFKRZ85miPBGW5fMT3ezqGpS3CyUw3eW34Q7udhlkIpCMHlAq0VnZzizHVHhVsejtQ/exec"
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyYhZNbWFUdcv83GBtSFgw6mhUtf_udQcWisgOQnQ8kkc9NsQFdg-SCWJEzKvT0p6CEsA/exec"
 
 if "local_records" not in st.session_state:
     st.session_state.local_records = pd.DataFrame(columns=[
@@ -88,6 +88,13 @@ def send_to_google_sheet(payload):
         st.error(f"⚠️ Error al conectar con la base de datos: {e}")
         return False
 
+def format_cop_int(val):
+    try:
+        val_int = int(round(float(val)))
+        return f"${val_int:,}".replace(",", ".")
+    except Exception:
+        return "$0"
+
 def load_data():
     df_sheet = pd.DataFrame(columns=["ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre", "Principal Producto", "Monto COP$MM"])
     try:
@@ -98,9 +105,9 @@ def load_data():
             if "Principal Producto" not in df_sheet.columns:
                 df_sheet["Principal Producto"] = ""
             if "Monto COP$MM" not in df_sheet.columns:
-                df_sheet["Monto COP$MM"] = 0.0
+                df_sheet["Monto COP$MM"] = 0
             else:
-                df_sheet["Monto COP$MM"] = pd.to_numeric(df_sheet["Monto COP$MM"], errors='coerce').fillna(0.0)
+                df_sheet["Monto COP$MM"] = pd.to_numeric(df_sheet["Monto COP$MM"], errors='coerce').fillna(0).astype(int)
     except Exception:
         pass
 
@@ -124,7 +131,7 @@ def compute_metrics(df, config):
     df_calc["Es_Nuevo"] = df_calc["Tipo Cliente"].apply(lambda x: 1 if "Nuevo" in str(x) or "Captación" in str(x) else 0)
     df_calc["Es_Existente"] = df_calc["Tipo Cliente"].apply(lambda x: 1 if "Existente" in str(x) or "Mantenimiento" in str(x) else 0)
     df_calc["Es_Cierre"] = df_calc["Cierre"].apply(lambda x: 1 if str(x).strip().lower() in ["sí", "si"] else 0)
-    df_calc["Monto COP$MM"] = pd.to_numeric(df_calc["Monto COP$MM"], errors='coerce').fillna(0.0)
+    df_calc["Monto COP$MM"] = pd.to_numeric(df_calc["Monto COP$MM"], errors='coerce').fillna(0).astype(int)
 
     summary = df_calc.groupby("Director").agg(
         Visitas_Totales=("Fecha", "count"),
@@ -178,9 +185,9 @@ if mode == "comercial":
     with col6:
         cierre = st.selectbox("¿Ocurrió Cierre?", ["No", "Sí"])
 
-    monto_cierre = 0.0
+    monto_cierre = 0
     if cierre == "Sí":
-        monto_cierre = st.number_input("💵 Monto Cierre (COP $ MM):", min_value=0.0, value=0.0, step=10.0, help="Ingresa el monto captado o cerrado en millones de pesos colombianos.")
+        monto_cierre = st.number_input("💵 Monto Cierre (COP $ MM):", min_value=0, value=0, step=1, help="Ingresa el monto captado o cerrado en millones de pesos colombianos (entero).")
 
     if st.button("💾 Guardar Visita"):
         if not nombre_cliente.strip():
@@ -199,7 +206,7 @@ if mode == "comercial":
                 "Canal": canal,
                 "Cierre": cierre,
                 "Principal Producto": principal_producto,
-                "Monto COP$MM": float(monto_cierre)
+                "Monto COP$MM": int(monto_cierre)
             }])
             st.session_state.local_records = pd.concat([st.session_state.local_records, new_row], ignore_index=True)
 
@@ -214,7 +221,7 @@ if mode == "comercial":
                 "Canal": canal,
                 "Cierre": cierre,
                 "Principal_Producto": principal_producto,
-                "Monto_COP_MM": float(monto_cierre)
+                "Monto_COP_MM": int(monto_cierre)
             }
             send_to_google_sheet(payload)
 
@@ -242,13 +249,16 @@ if mode == "comercial":
             m3.metric("Factor Actividad", f"{row['Factor_Actividad']*100:.0f}%")
             m4.metric("Tasa Conversión", f"{row['Tasa_Conversion']*100:.1f}%")
             m5.metric("IEP Comercial", f"{row['IEP']*100:.1f}%")
-            m6.metric("Total Cierres $MM", f"${row['Total_Monto_COP_MM']:,.1f} MM")
+            m6.metric("Total Cierres $MM", f"{format_cop_int(row['Total_Monto_COP_MM'])} MM")
         
         st.divider()
         st.subheader("📋 Mis Visitas Registradas")
 
         df_display = user_records_month[["ID", "Fecha", "Nombre Cliente", "Tipo Cliente", "Canal", "Principal Producto", "Cierre", "Monto COP$MM"]].copy()
-        st.dataframe(df_display[["Fecha", "Nombre Cliente", "Tipo Cliente", "Canal", "Principal Producto", "Cierre", "Monto COP$MM"]], use_container_width=True)
+        df_display_show = df_display[["Fecha", "Nombre Cliente", "Tipo Cliente", "Canal", "Principal Producto", "Cierre", "Monto COP$MM"]].copy()
+        df_display_show["Monto COP$MM"] = df_display_show["Monto COP$MM"].apply(format_cop_int)
+        
+        st.dataframe(df_display_show, use_container_width=True)
 
         # MÓDULO DE ACTUALIZACIÓN DE PRODUCTO / MONTO EN VISITAS HISTÓRICAS
         with st.expander("✏️ Actualizar Producto o Monto de una Visita Registrada"):
@@ -266,7 +276,7 @@ if mode == "comercial":
                 with c_edit2:
                     nuevo_cierre = st.selectbox("¿Ocurrió Cierre?", ["No", "Sí"], index=1 if str(record_to_edit['Cierre']).strip().lower() in ['sí', 'si'] else 0, key="edit_cierre")
                 with c_edit3:
-                    nuevo_monto = st.number_input("Monto COP $MM:", min_value=0.0, value=float(record_to_edit.get('Monto COP$MM', 0.0)), step=10.0, key="edit_monto")
+                    nuevo_monto = st.number_input("Monto COP $MM:", min_value=0, value=int(record_to_edit.get('Monto COP$MM', 0)), step=1, key="edit_monto")
                 
                 if st.button("🔄 Guardar Cambios en la Visita"):
                     edit_payload = {
@@ -274,7 +284,7 @@ if mode == "comercial":
                         "ID": str(record_to_edit['ID']),
                         "Principal_Producto": nuevo_prod,
                         "Cierre": nuevo_cierre,
-                        "Monto_COP_MM": float(nuevo_monto) if nuevo_cierre == "Sí" else 0.0
+                        "Monto_COP_MM": int(nuevo_monto) if nuevo_cierre == "Sí" else 0
                     }
                     send_to_google_sheet(edit_payload)
                     
@@ -283,7 +293,7 @@ if mode == "comercial":
                     if mask.any():
                         st.session_state.local_records.loc[mask, "Principal Producto"] = nuevo_prod
                         st.session_state.local_records.loc[mask, "Cierre"] = nuevo_cierre
-                        st.session_state.local_records.loc[mask, "Monto COP$MM"] = float(nuevo_monto) if nuevo_cierre == "Sí" else 0.0
+                        st.session_state.local_records.loc[mask, "Monto COP$MM"] = int(nuevo_monto) if nuevo_cierre == "Sí" else 0
 
                     st.success("¡Visita actualizada correctamente!")
                     st.rerun()
@@ -321,7 +331,7 @@ elif mode == "lider":
                 col_b.metric("Puntos Promedio Esfuerzo", f"{global_summary['Puntos_Esfuerzo'].mean():.1f}")
                 col_c.metric("IEP Promedio Equipo", f"{global_summary['IEP'].mean()*100:.1f}%")
                 col_d.metric("Cierres Totales Mes", int(global_summary["Cierres"].sum()))
-                col_e.metric("Volumen Captado Total", f"${global_summary['Total_Monto_COP_MM'].sum():,.1f} MM")
+                col_e.metric("Volumen Captado Total", f"{format_cop_int(global_summary['Total_Monto_COP_MM'].sum())} MM")
 
                 st.divider()
                 st.subheader(f"📋 Rendimiento del Equipo - Período {mes_global}")
@@ -332,6 +342,7 @@ elif mode == "lider":
                     "Cierres", "Total_Monto_COP_MM", "Tasa_Conversion", "IEP"
                 ]].copy()
 
+                display_df["Total_Monto_COP_MM"] = display_df["Total_Monto_COP_MM"].apply(format_cop_int)
                 display_df.rename(columns={"Total_Monto_COP_MM": "Monto Total ($MM)"}, inplace=True)
                 display_df["Factor_Actividad"] = (display_df["Factor_Actividad"] * 100).round(1).astype(str) + "%"
                 display_df["Tasa_Conversion"] = (display_df["Tasa_Conversion"] * 100).round(1).astype(str) + "%"
@@ -360,7 +371,11 @@ elif mode == "lider":
                 df_bitacora = df_bitacora[df_bitacora["Director"] == d_selected]
 
             cols_show = ["Fecha", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Principal Producto", "Cierre", "Monto COP$MM"]
-            st.dataframe(df_bitacora[[c for c in cols_show if c in df_bitacora.columns]], use_container_width=True)
+            df_bitacora_show = df_bitacora[[c for c in cols_show if c in df_bitacora.columns]].copy()
+            if "Monto COP$MM" in df_bitacora_show.columns:
+                df_bitacora_show["Monto COP$MM"] = df_bitacora_show["Monto COP$MM"].apply(format_cop_int)
+
+            st.dataframe(df_bitacora_show, use_container_width=True)
 
             with st.expander("🗑️ Eliminar un registro de la base de datos"):
                 dict_lider = {
