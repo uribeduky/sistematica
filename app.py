@@ -66,11 +66,11 @@ if "config" not in st.session_state:
     st.session_state.config = DEFAULT_CONFIG
 
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1c_3WF_RyzgtsHyr6MlPnVGYFvBfjveUIKCe6RRQdAws/export?format=csv"
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwuQXNm7cz5C0Yanm5OfGQG1JvvXC4nXwVz7J6KyJeXpKwc020rtCMtRb6sLXRDhsy9GA/exec"
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxOcFKRZ85miPBGW5fMT3ezqGpS3CyUw3eW34Q7udhlkIpCMHlAq0VnZzizHVHhVsejtQ/exec"
 
 if "local_records" not in st.session_state:
     st.session_state.local_records = pd.DataFrame(columns=[
-        "ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre", "Principal Producto"
+        "ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre", "Principal Producto", "Monto COP$MM"
     ])
 
 if "deleted_ids" not in st.session_state:
@@ -89,7 +89,7 @@ def send_to_google_sheet(payload):
         return False
 
 def load_data():
-    df_sheet = pd.DataFrame(columns=["ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre", "Principal Producto"])
+    df_sheet = pd.DataFrame(columns=["ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre", "Principal Producto", "Monto COP$MM"])
     try:
         timestamp_url = f"{SHEET_CSV_URL}&t={int(datetime.datetime.now().timestamp())}"
         df_sheet = pd.read_csv(timestamp_url)
@@ -97,6 +97,10 @@ def load_data():
             df_sheet["ID"] = df_sheet["ID"].astype(str)
             if "Principal Producto" not in df_sheet.columns:
                 df_sheet["Principal Producto"] = ""
+            if "Monto COP$MM" not in df_sheet.columns:
+                df_sheet["Monto COP$MM"] = 0.0
+            else:
+                df_sheet["Monto COP$MM"] = pd.to_numeric(df_sheet["Monto COP$MM"], errors='coerce').fillna(0.0)
     except Exception:
         pass
 
@@ -120,6 +124,7 @@ def compute_metrics(df, config):
     df_calc["Es_Nuevo"] = df_calc["Tipo Cliente"].apply(lambda x: 1 if "Nuevo" in str(x) or "Captación" in str(x) else 0)
     df_calc["Es_Existente"] = df_calc["Tipo Cliente"].apply(lambda x: 1 if "Existente" in str(x) or "Mantenimiento" in str(x) else 0)
     df_calc["Es_Cierre"] = df_calc["Cierre"].apply(lambda x: 1 if str(x).strip().lower() in ["sí", "si"] else 0)
+    df_calc["Monto COP$MM"] = pd.to_numeric(df_calc["Monto COP$MM"], errors='coerce').fillna(0.0)
 
     summary = df_calc.groupby("Director").agg(
         Visitas_Totales=("Fecha", "count"),
@@ -127,7 +132,8 @@ def compute_metrics(df, config):
         Visitas_Virtuales=("Es_Virtual", "sum"),
         Visitas_Nuevos=("Es_Nuevo", "sum"),
         Visitas_Existentes=("Es_Existente", "sum"),
-        Cierres=("Es_Cierre", "sum")
+        Cierres=("Es_Cierre", "sum"),
+        Total_Monto_COP_MM=("Monto COP$MM", "sum")
     ).reset_index()
 
     puntos_canal = (summary["Visitas_Presenciales"] * config["p_presencial"]) + (summary["Visitas_Virtuales"] * config["p_virtual"])
@@ -158,7 +164,7 @@ if mode == "comercial":
 
     st.subheader("📝 Registrar Nueva Visita Comercial")
     
-    col1, col2, col3, col4, col5, col6 = st.columns([1.1, 1.8, 1.4, 1.1, 1.4, 1.0])
+    col1, col2, col3, col4, col5, col6 = st.columns([1.1, 1.8, 1.3, 1.0, 1.3, 1.0])
     with col1:
         fecha_visita = st.date_input("Fecha de Visita", datetime.date.today())
     with col2:
@@ -171,6 +177,10 @@ if mode == "comercial":
         principal_producto = st.selectbox("Principal Producto", LISTA_PRODUCTOS)
     with col6:
         cierre = st.selectbox("¿Ocurrió Cierre?", ["No", "Sí"])
+
+    monto_cierre = 0.0
+    if cierre == "Sí":
+        monto_cierre = st.number_input("💵 Monto Cierre (COP $ MM):", min_value=0.0, value=0.0, step=10.0, help="Ingresa el monto captado o cerrado en millones de pesos colombianos.")
 
     if st.button("💾 Guardar Visita"):
         if not nombre_cliente.strip():
@@ -188,7 +198,8 @@ if mode == "comercial":
                 "Tipo Cliente": tipo_cliente,
                 "Canal": canal,
                 "Cierre": cierre,
-                "Principal Producto": principal_producto
+                "Principal Producto": principal_producto,
+                "Monto COP$MM": float(monto_cierre)
             }])
             st.session_state.local_records = pd.concat([st.session_state.local_records, new_row], ignore_index=True)
 
@@ -202,11 +213,12 @@ if mode == "comercial":
                 "Tipo_Cliente": tipo_cliente,
                 "Canal": canal,
                 "Cierre": cierre,
-                "Principal_Producto": principal_producto
+                "Principal_Producto": principal_producto,
+                "Monto_COP_MM": float(monto_cierre)
             }
             send_to_google_sheet(payload)
 
-            st.success(f"¡Visita a '{nombre_cliente}' ({principal_producto}) registrada exitosamente!")
+            st.success(f"¡Visita a '{nombre_cliente}' registrada exitosamente!")
             st.rerun()
 
     st.divider()
@@ -224,33 +236,57 @@ if mode == "comercial":
         
         if not user_summary.empty:
             row = user_summary.iloc[0]
-            m1, m2, m3, m4, m5 = st.columns(5)
+            m1, m2, m3, m4, m5, m6 = st.columns(6)
             m1.metric("Visitas Realizadas", int(row["Visitas_Totales"]))
             m2.metric("Puntos de Esfuerzo", f"{row['Puntos_Esfuerzo']:.1f} / {st.session_state.config['umbral_puntos']}")
             m3.metric("Factor Actividad", f"{row['Factor_Actividad']*100:.0f}%")
             m4.metric("Tasa Conversión", f"{row['Tasa_Conversion']*100:.1f}%")
             m5.metric("IEP Comercial", f"{row['IEP']*100:.1f}%")
+            m6.metric("Total Cierres $MM", f"${row['Total_Monto_COP_MM']:,.1f} MM")
         
         st.divider()
         st.subheader("📋 Mis Visitas Registradas")
 
-        df_display = user_records_month[["ID", "Fecha", "Nombre Cliente", "Tipo Cliente", "Canal", "Principal Producto", "Cierre"]].copy()
-        st.dataframe(df_display[["Fecha", "Nombre Cliente", "Tipo Cliente", "Canal", "Principal Producto", "Cierre"]], use_container_width=True)
+        df_display = user_records_month[["ID", "Fecha", "Nombre Cliente", "Tipo Cliente", "Canal", "Principal Producto", "Cierre", "Monto COP$MM"]].copy()
+        st.dataframe(df_display[["Fecha", "Nombre Cliente", "Tipo Cliente", "Canal", "Principal Producto", "Cierre", "Monto COP$MM"]], use_container_width=True)
 
-        with st.expander("🗑️ Eliminar una visita registrada"):
-            dict_opciones = {
-                f"{r['Fecha']} - {r['Nombre Cliente']} ({r['Principal Producto']})": r['ID']
+        # MÓDULO DE ACTUALIZACIÓN DE PRODUCTO / MONTO EN VISITAS HISTÓRICAS
+        with st.expander("✏️ Actualizar Producto o Monto de una Visita Registrada"):
+            dict_edit = {
+                f"{r['Fecha']} - {r['Nombre Cliente']} (Producto actual: {r['Principal Producto'] or 'Sin definir'})": r
                 for _, r in df_display.iterrows()
             }
-            seleccion_borrar = st.selectbox("Selecciona la visita que deseas eliminar:", list(dict_opciones.keys()))
-            
-            if st.button("🗑️ Confirmar y Eliminar Visita"):
-                id_a_borrar = dict_opciones[seleccion_borrar]
-                send_to_google_sheet({"action": "delete", "ID": str(id_a_borrar)})
-                st.session_state.deleted_ids.add(str(id_a_borrar))
-                st.session_state.local_records = st.session_state.local_records[st.session_state.local_records["ID"].astype(str) != str(id_a_borrar)]
-                st.success("¡Visita eliminada correctamente!")
-                st.rerun()
+            if dict_edit:
+                visita_edit_sel = st.selectbox("Selecciona la visita que deseas actualizar:", list(dict_edit.keys()))
+                record_to_edit = dict_edit[visita_edit_sel]
+                
+                c_edit1, c_edit2, c_edit3 = st.columns(3)
+                with c_edit1:
+                    nuevo_prod = st.selectbox("Nuevo Principal Producto:", LISTA_PRODUCTOS, key="edit_prod")
+                with c_edit2:
+                    nuevo_cierre = st.selectbox("¿Ocurrió Cierre?", ["No", "Sí"], index=1 if str(record_to_edit['Cierre']).strip().lower() in ['sí', 'si'] else 0, key="edit_cierre")
+                with c_edit3:
+                    nuevo_monto = st.number_input("Monto COP $MM:", min_value=0.0, value=float(record_to_edit.get('Monto COP$MM', 0.0)), step=10.0, key="edit_monto")
+                
+                if st.button("🔄 Guardar Cambios en la Visita"):
+                    edit_payload = {
+                        "action": "update",
+                        "ID": str(record_to_edit['ID']),
+                        "Principal_Producto": nuevo_prod,
+                        "Cierre": nuevo_cierre,
+                        "Monto_COP_MM": float(nuevo_monto) if nuevo_cierre == "Sí" else 0.0
+                    }
+                    send_to_google_sheet(edit_payload)
+                    
+                    # Actualizar en memoria local
+                    mask = st.session_state.local_records["ID"].astype(str) == str(record_to_edit['ID'])
+                    if mask.any():
+                        st.session_state.local_records.loc[mask, "Principal Producto"] = nuevo_prod
+                        st.session_state.local_records.loc[mask, "Cierre"] = nuevo_cierre
+                        st.session_state.local_records.loc[mask, "Monto COP$MM"] = float(nuevo_monto) if nuevo_cierre == "Sí" else 0.0
+
+                    st.success("¡Visita actualizada correctamente!")
+                    st.rerun()
 
     else:
         st.info("Aún no tienes visitas registradas. Comienza guardando tu primera visita arriba.")
@@ -280,11 +316,12 @@ elif mode == "lider":
             global_summary = compute_metrics(records_month, st.session_state.config)
 
             if not global_summary.empty:
-                col_a, col_b, col_c, col_d = st.columns(4)
+                col_a, col_b, col_c, col_d, col_e = st.columns(5)
                 col_a.metric("Total Visitas Equipo", int(global_summary["Visitas_Totales"].sum()))
                 col_b.metric("Puntos Promedio Esfuerzo", f"{global_summary['Puntos_Esfuerzo'].mean():.1f}")
                 col_c.metric("IEP Promedio Equipo", f"{global_summary['IEP'].mean()*100:.1f}%")
                 col_d.metric("Cierres Totales Mes", int(global_summary["Cierres"].sum()))
+                col_e.metric("Volumen Captado Total", f"${global_summary['Total_Monto_COP_MM'].sum():,.1f} MM")
 
                 st.divider()
                 st.subheader(f"📋 Rendimiento del Equipo - Período {mes_global}")
@@ -292,9 +329,10 @@ elif mode == "lider":
                 display_df = global_summary[[
                     "Director", "Visitas_Totales", "Visitas_Presenciales", "Visitas_Virtuales",
                     "Visitas_Nuevos", "Visitas_Existentes", "Puntos_Esfuerzo", "Factor_Actividad",
-                    "Cierres", "Tasa_Conversion", "IEP"
+                    "Cierres", "Total_Monto_COP_MM", "Tasa_Conversion", "IEP"
                 ]].copy()
 
+                display_df.rename(columns={"Total_Monto_COP_MM": "Monto Total ($MM)"}, inplace=True)
                 display_df["Factor_Actividad"] = (display_df["Factor_Actividad"] * 100).round(1).astype(str) + "%"
                 display_df["Tasa_Conversion"] = (display_df["Tasa_Conversion"] * 100).round(1).astype(str) + "%"
                 display_df["IEP"] = (display_df["IEP"] * 100).round(1).astype(str) + "%"
@@ -321,7 +359,7 @@ elif mode == "lider":
             if d_selected != "Todos":
                 df_bitacora = df_bitacora[df_bitacora["Director"] == d_selected]
 
-            cols_show = ["Fecha", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Principal Producto", "Cierre"]
+            cols_show = ["Fecha", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Principal Producto", "Cierre", "Monto COP$MM"]
             st.dataframe(df_bitacora[[c for c in cols_show if c in df_bitacora.columns]], use_container_width=True)
 
             with st.expander("🗑️ Eliminar un registro de la base de datos"):
