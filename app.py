@@ -66,7 +66,7 @@ if "config" not in st.session_state:
     st.session_state.config = DEFAULT_CONFIG
 
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1c_3WF_RyzgtsHyr6MlPnVGYFvBfjveUIKCe6RRQdAws/export?format=csv"
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycbyYhZNbWFUdcv83GBtSFgw6mhUtf_udQcWisgOQnQ8kkc9NsQFdg-SCWJEzKvT0p6CEsA/exec"
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxuqOdtUXk80ApD1L_6jZ9N0uMSkG1lIsH1GRjaG-tbUdYiLLmcyUxw3KC3uBQO4g1kOw/exec"
 
 if "local_records" not in st.session_state:
     st.session_state.local_records = pd.DataFrame(columns=[
@@ -313,15 +313,19 @@ elif mode == "lider":
     with tab1:
         if not records_df.empty:
             meses_globales = sorted(records_df["Mes_Año"].astype(str).unique(), reverse=True)
-            col_mes, col_dir_filter = st.columns([1, 1])
+            col_mes, col_dir_filter, col_prod_filter = st.columns([1, 1, 1])
             with col_mes:
                 mes_global = st.selectbox("📅 Selecciona el Mes a Evaluar:", meses_globales)
             with col_dir_filter:
                 dir_global_filter = st.selectbox("👤 Filtrar por Director:", ["Todos"] + LISTA_DIRECTORES)
+            with col_prod_filter:
+                prod_global_filter = st.selectbox("📦 Filtrar por Producto:", ["Todos"] + LISTA_PRODUCTOS)
             
             records_month = records_df[records_df["Mes_Año"] == mes_global]
             if dir_global_filter != "Todos":
                 records_month = records_month[records_month["Director"] == dir_global_filter]
+            if prod_global_filter != "Todos":
+                records_month = records_month[records_month["Principal Producto"] == prod_global_filter]
 
             global_summary = compute_metrics(records_month, st.session_state.config)
 
@@ -350,7 +354,7 @@ elif mode == "lider":
 
                 st.dataframe(display_df, use_container_width=True)
             else:
-                st.info("No hay registros en el mes o director seleccionado.")
+                st.info("No hay registros que coincidan con los filtros seleccionados (Mes, Director o Producto).")
         else:
             st.info("No hay registros en la base de datos para mostrar acumulados.")
 
