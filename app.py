@@ -290,13 +290,10 @@ if mode == "comercial":
                 u_nuevos = len(user_records_month[user_records_month["Tipo Cliente"].astype(str).str.contains("Nuevo|Captación", case=False, na=False)])
                 u_pct_nuevos = (u_nuevos / u_visitas * 100) if u_visitas > 0 else 0
 
-                u_ratio_cierres = (u_cierres / u_visitas * 100) if u_visitas > 0 else 0
-
-                c_i1, c_i2, c_i3, c_i4 = st.columns(4)
+                c_i1, c_i2, c_i3 = st.columns(3)
                 c_i1.metric("Ticket Promedio / Cierre", f"{format_cop_int(u_ticket_prom)} MM")
                 c_i2.metric("Mix Presencialidad", f"{u_pct_pres:.0f}% Presencial")
                 c_i3.metric("Foco Captación (Nuevos)", f"{u_pct_nuevos:.0f}% Nuevo")
-                c_i4.metric("Ratio Cierres vs Visitas", f"{u_ratio_cierres:.1f}%")
 
                 st.markdown("---")
                 st.markdown("##### 📌 **Recomendación Comercial**")
