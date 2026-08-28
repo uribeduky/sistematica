@@ -290,19 +290,13 @@ if mode == "comercial":
                 u_nuevos = len(user_records_month[user_records_month["Tipo Cliente"].astype(str).str.contains("Nuevo|Captación", case=False, na=False)])
                 u_pct_nuevos = (u_nuevos / u_visitas * 100) if u_visitas > 0 else 0
 
-                u_top_prod = "N/A"
-                if "Principal Producto" in user_records_month.columns:
-                    u_prod_vol = user_records_month.groupby("Principal Producto")["Monto COP$MM"].sum().reset_index()
-                    u_prod_vol = u_prod_vol[u_prod_vol["Principal Producto"].astype(str).str.strip() != ""]
-                    if not u_prod_vol.empty:
-                        u_top_row = u_prod_vol.sort_values(by="Monto COP$MM", ascending=False).iloc[0]
-                        u_top_prod = f"{u_top_row['Principal Producto']} ({format_cop_int(u_top_row['Monto COP$MM'])} MM)"
+                u_ratio_cierres = (u_cierres / u_visitas * 100) if u_visitas > 0 else 0
 
                 c_i1, c_i2, c_i3, c_i4 = st.columns(4)
                 c_i1.metric("Ticket Promedio / Cierre", f"{format_cop_int(u_ticket_prom)} MM")
                 c_i2.metric("Mix Presencialidad", f"{u_pct_pres:.0f}% Presencial")
                 c_i3.metric("Foco Captación (Nuevos)", f"{u_pct_nuevos:.0f}% Nuevo")
-                c_i4.metric("Tu Producto Estrella", u_top_prod)
+                c_i4.metric("Ratio Cierres vs Visitas", f"{u_ratio_cierres:.1f}%")
 
                 st.markdown("---")
                 st.markdown("##### 📌 **Recomendación Comercial**")
@@ -420,19 +414,13 @@ elif mode == "lider":
                     num_nuevos = len(records_month[records_month["Tipo Cliente"].str.contains("Nuevo|Captación", case=False, na=False)]) if not records_month.empty else 0
                     pct_nuevos = (num_nuevos / tot_visitas * 100) if tot_visitas > 0 else 0
 
-                    top_prod_str = "N/A"
-                    if not records_month.empty and "Principal Producto" in records_month.columns:
-                        prod_vol = records_month.groupby("Principal Producto")["Monto COP$MM"].sum().reset_index()
-                        prod_vol = prod_vol[prod_vol["Principal Producto"].str.strip() != ""]
-                        if not prod_vol.empty:
-                            top_prod_row = prod_vol.sort_values(by="Monto COP$MM", ascending=False).iloc[0]
-                            top_prod_str = f"{top_prod_row['Principal Producto']} ({format_cop_int(top_prod_row['Monto COP$MM'])} MM)"
+                    ratio_cierres_global = (tot_cierres / tot_visitas * 100) if tot_visitas > 0 else 0
 
                     ins_col1, ins_col2, ins_col3, ins_col4 = st.columns(4)
                     ins_col1.metric("Ticket Promedio / Cierre", f"{format_cop_int(ticket_prom)} MM")
                     ins_col2.metric("Mix Presencialidad", f"{pct_pres:.0f}% Presencial")
                     ins_col3.metric("Foco Captación (Nuevos)", f"{pct_nuevos:.0f}% Nuevo")
-                    ins_col4.metric("Producto Líder en Volumen", top_prod_str)
+                    ins_col4.metric("Ratio Cierres vs Visitas", f"{ratio_cierres_global:.1f}%")
 
                     st.markdown("---")
                     st.markdown("##### 📌 **Recomendación Comercial**")
