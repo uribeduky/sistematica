@@ -112,12 +112,14 @@ def load_data():
         if not df_sheet.empty and "ID" in df_sheet.columns:
             df_sheet["ID"] = df_sheet["ID"].astype(str)
             
-            # Normalizar columnas por si vienen con guion bajo o espacio
+            # Mapeo universal de nombres de columnas para garantizar compatibilidad total
             col_map = {
                 "Nombre_Cliente": "Nombre Cliente",
                 "Tipo_Cliente": "Tipo Cliente",
                 "Principal_Producto": "Principal Producto",
-                "Monto_COP_MM": "Monto COP$MM"
+                "Monto_COP_MM": "Monto COP$MM",
+                "Monto": "Monto COP$MM",
+                "Monto ($MM)": "Monto COP$MM"
             }
             df_sheet.rename(columns=col_map, inplace=True)
 
@@ -240,13 +242,16 @@ if mode == "comercial":
                 "Mes_Año": mes_str,
                 "Director": selected_director,
                 "Nombre_Cliente": nombre_cliente.strip(),
+                "Nombre Cliente": nombre_cliente.strip(),
                 "Tipo_Cliente": tipo_cliente,
+                "Tipo Cliente": tipo_cliente,
                 "Canal": canal,
                 "Cierre": cierre,
                 "Principal_Producto": principal_producto,
-                "Monto_COP_MM": final_monto,
                 "Principal Producto": principal_producto,
-                "Monto COP$MM": final_monto
+                "Monto_COP_MM": final_monto,
+                "Monto COP$MM": final_monto,
+                "Monto": final_monto
             }
             send_to_google_sheet(payload)
 
@@ -336,14 +341,17 @@ if mode == "comercial":
                     nuevo_monto = st.number_input("Monto COP $MM:", min_value=0, value=int(record_to_edit.get('Monto COP$MM', 0)), step=1, key="edit_monto")
                 
                 if st.button("🔄 Guardar Cambios en la Visita"):
+                    final_edit_monto = int(nuevo_monto) if nuevo_cierre == "Sí" else 0
+                    
                     edit_payload = {
                         "action": "update",
                         "ID": str(record_to_edit['ID']),
                         "Principal_Producto": nuevo_prod,
                         "Principal Producto": nuevo_prod,
                         "Cierre": nuevo_cierre,
-                        "Monto_COP_MM": int(nuevo_monto) if nuevo_cierre == "Sí" else 0,
-                        "Monto COP$MM": int(nuevo_monto) if nuevo_cierre == "Sí" else 0
+                        "Monto_COP_MM": final_edit_monto,
+                        "Monto COP$MM": final_edit_monto,
+                        "Monto": final_edit_monto
                     }
                     send_to_google_sheet(edit_payload)
                     
@@ -351,7 +359,7 @@ if mode == "comercial":
                     if mask.any():
                         st.session_state.local_records.loc[mask, "Principal Producto"] = nuevo_prod
                         st.session_state.local_records.loc[mask, "Cierre"] = nuevo_cierre
-                        st.session_state.local_records.loc[mask, "Monto COP$MM"] = int(nuevo_monto) if nuevo_cierre == "Sí" else 0
+                        st.session_state.local_records.loc[mask, "Monto COP$MM"] = final_edit_monto
 
                     st.success("¡Visita actualizada correctamente!")
                     st.rerun()
@@ -502,14 +510,17 @@ elif mode == "lider":
                         nuevo_monto_lider = st.number_input("Modificar Monto COP $MM:", min_value=0, value=int(record_lider_sel.get('Monto COP$MM', 0)), step=1, key="lid_monto")
                         
                         if st.button("🔄 Guardar Modificación"):
+                            final_monto_lid = int(nuevo_monto_lider) if nuevo_cierre_lider == "Sí" else 0
+                            
                             edit_payload_lider = {
                                 "action": "update",
                                 "ID": str(record_lider_sel['ID']),
                                 "Principal_Producto": nuevo_prod_lider,
                                 "Principal Producto": nuevo_prod_lider,
                                 "Cierre": nuevo_cierre_lider,
-                                "Monto_COP_MM": int(nuevo_monto_lider) if nuevo_cierre_lider == "Sí" else 0,
-                                "Monto COP$MM": int(nuevo_monto_lider) if nuevo_cierre_lider == "Sí" else 0
+                                "Monto_COP_MM": final_monto_lid,
+                                "Monto COP$MM": final_monto_lid,
+                                "Monto": final_monto_lid
                             }
                             send_to_google_sheet(edit_payload_lider)
                             
@@ -517,7 +528,7 @@ elif mode == "lider":
                             if mask_lider.any():
                                 st.session_state.local_records.loc[mask_lider, "Principal Producto"] = nuevo_prod_lider
                                 st.session_state.local_records.loc[mask_lider, "Cierre"] = nuevo_cierre_lider
-                                st.session_state.local_records.loc[mask_lider, "Monto COP$MM"] = int(nuevo_monto_lider) if nuevo_cierre_lider == "Sí" else 0
+                                st.session_state.local_records.loc[mask_lider, "Monto COP$MM"] = final_monto_lid
 
                             st.success("¡Visita actualizada correctamente!")
                             st.rerun()
