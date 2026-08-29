@@ -112,7 +112,7 @@ def load_data():
         if not df_sheet.empty and "ID" in df_sheet.columns:
             df_sheet["ID"] = df_sheet["ID"].astype(str)
             
-            # Mapeo universal de nombres de columnas para garantizar compatibilidad total
+            # Mapeo universal de nombres de columnas
             col_map = {
                 "Nombre_Cliente": "Nombre Cliente",
                 "Tipo_Cliente": "Tipo Cliente",
@@ -494,10 +494,15 @@ elif mode == "lider":
                     c_lid1, c_lid2 = st.columns(2)
                     with c_lid1:
                         if st.button("🗑️ Eliminar Registro Seleccionado"):
-                            id_del = record_lider_sel['ID']
-                            send_to_google_sheet({"action": "delete", "ID": str(id_del)})
-                            st.session_state.deleted_ids.add(str(id_del))
-                            st.session_state.local_records = st.session_state.local_records[st.session_state.local_records["ID"].astype(str) != str(id_del)]
+                            id_del = str(record_lider_sel['ID'])
+                            send_to_google_sheet({"action": "delete", "ID": id_del})
+                            st.session_state.deleted_ids.add(id_del)
+                            
+                            # Eliminar en memoria local para refrescar inmediatamente
+                            if not st.session_state.local_records.empty:
+                                st.session_state.local_records = st.session_state.local_records[
+                                    st.session_state.local_records["ID"].astype(str) != id_del
+                                ]
                             st.success("¡Registro eliminado correctamente!")
                             st.rerun()
                     
