@@ -320,49 +320,68 @@ if mode == "comercial":
         
         st.dataframe(df_display_show, use_container_width=True)
 
-        with st.expander("✏️ Actualizar Producto o Monto de una Visita Registrada"):
-            dict_edit = {
-                f"{r['Fecha']} - {r['Nombre Cliente']} (Producto actual: {r['Principal Producto'] or 'Sin definir'})": r
-                for _, r in df_display.iterrows()
-            }
-            if dict_edit:
-                visita_edit_sel = st.selectbox("Selecciona la visita que deseas actualizar:", list(dict_edit.keys()))
-                record_to_edit = dict_edit[visita_edit_sel]
-                
-                curr_prod = str(record_to_edit.get('Principal Producto', ''))
-                idx_prod = LISTA_PRODUCTOS.index(curr_prod) if curr_prod in LISTA_PRODUCTOS else 0
+        col_edit_exp, col_del_exp = st.columns(2)
 
-                c_edit1, c_edit2, c_edit3 = st.columns(3)
-                with c_edit1:
+        with col_edit_exp:
+            with st.expander("✏️ Actualizar una Visita Registrada"):
+                dict_edit = {
+                    f"{r['Fecha']} - {r['Nombre Cliente']} (Producto: {r['Principal Producto'] or 'Sin definir'})": r
+                    for _, r in df_display.iterrows()
+                }
+                if dict_edit:
+                    visita_edit_sel = st.selectbox("Selecciona la visita que deseas actualizar:", list(dict_edit.keys()), key="sel_edit_user")
+                    record_to_edit = dict_edit[visita_edit_sel]
+                    
+                    curr_prod = str(record_to_edit.get('Principal Producto', ''))
+                    idx_prod = LISTA_PRODUCTOS.index(curr_prod) if curr_prod in LISTA_PRODUCTOS else 0
+
                     nuevo_prod = st.selectbox("Nuevo Principal Producto:", LISTA_PRODUCTOS, index=idx_prod, key="edit_prod")
-                with c_edit2:
                     nuevo_cierre = st.selectbox("¿Ocurrió Cierre?", ["No", "Sí"], index=1 if str(record_to_edit['Cierre']).strip().lower() in ['sí', 'si'] else 0, key="edit_cierre")
-                with c_edit3:
                     nuevo_monto = st.number_input("Monto COP $MM:", min_value=0, value=int(record_to_edit.get('Monto COP$MM', 0)), step=1, key="edit_monto")
-                
-                if st.button("🔄 Guardar Cambios en la Visita"):
-                    final_edit_monto = int(nuevo_monto) if nuevo_cierre == "Sí" else 0
                     
-                    edit_payload = {
-                        "action": "update",
-                        "ID": str(record_to_edit['ID']),
-                        "Principal_Producto": nuevo_prod,
-                        "Principal Producto": nuevo_prod,
-                        "Cierre": nuevo_cierre,
-                        "Monto_COP_MM": final_edit_monto,
-                        "Monto COP$MM": final_edit_monto,
-                        "Monto": final_edit_monto
-                    }
-                    send_to_google_sheet(edit_payload)
-                    
-                    mask = st.session_state.local_records["ID"].astype(str) == str(record_to_edit['ID'])
-                    if mask.any():
-                        st.session_state.local_records.loc[mask, "Principal Producto"] = nuevo_prod
-                        st.session_state.local_records.loc[mask, "Cierre"] = nuevo_cierre
-                        st.session_state.local_records.loc[mask, "Monto COP$MM"] = final_edit_monto
+                    if st.button("🔄 Guardar Cambios en la Visita", key="btn_save_edit"):
+                        final_edit_monto = int(nuevo_monto) if nuevo_cierre == "Sí" else 0
+                        
+                        edit_payload = {
+                            "action": "update",
+                            "ID": str(record_to_edit['ID']),
+                            "Principal_Producto": nuevo_prod,
+                            "Principal Producto": nuevo_prod,
+                            "Cierre": nuevo_cierre,
+                            "Monto_COP_MM": final_edit_monto,
+                            "Monto COP$MM": final_edit_monto,
+                            "Monto": final_edit_monto
+                        }
+                        send_to_google_sheet(edit_payload)
+                        
+                        mask = st.session_state.local_records["ID"].astype(str) == str(record_to_edit['ID'])
+                        if mask.any():
+                            st.session_state.local_records.loc[mask, "Principal Producto"] = nuevo_prod
+                            st.session_state.local_records.loc[mask, "Cierre"] = nuevo_cierre
+                            st.session_state.local_records.loc[mask, "Monto COP$MM"] = final_edit_monto
 
-                    st.success("¡Visita actualizada correctamente!")
-                    st.rerun()
+                        st.success("¡Visita actualizada correctamente!")
+                        st.rerun()
+
+        with col_del_exp:
+            with st.expander("🗑️ Eliminar una Visita Registrada"):
+                dict_del = {
+                    f"{r['Fecha']} - {r['Nombre Cliente']} (ID: {r['ID']})": str(r['ID'])
+                    for _, r in df_display.iterrows()
+                }
+                if dict_del:
+                    visita_del_sel = st.selectbox("Selecciona la visita que deseas eliminar:", list(dict_del.keys()), key="sel_del_user")
+                    if st.button("🗑️ Eliminar Esta Visita", key="btn_del_user"):
+                        id_del_user = dict_del[visita_del_sel]
+                        send_to_google_sheet({"action": "delete", "ID": id_del_user})
+                        st.session_state.deleted_ids.add(id_del_user)
+                        
+                        if not st.session_state.local_records.empty:
+                            st.session_state.local_records = st.session_state.local_records[
+                                st.session_state.local_records["ID"].astype(str) != id_del_user
+                            ]
+                        st.success("¡Visita eliminada correctamente!")
+                        st.rerun()
 
     else:
         st.info("Aún no tienes visitas registradas. Comienza guardando tu primera visita arriba.")
@@ -481,62 +500,6 @@ elif mode == "lider":
                 df_bitacora_show["Monto COP$MM"] = df_bitacora_show["Monto COP$MM"].apply(format_cop_int)
 
             st.dataframe(df_bitacora_show, use_container_width=True)
-
-            with st.expander("🗑️ Eliminar o Modificar un registro de la base de datos"):
-                dict_lider = {
-                    f"{r['Fecha']} | {r['Director']} -> {r['Nombre Cliente']} (ID: {r['ID']})": r
-                    for _, r in df_bitacora.iterrows()
-                }
-                if dict_lider:
-                    sel_lider_key = st.selectbox("Selecciona la visita a gestionar:", list(dict_lider.keys()))
-                    record_lider_sel = dict_lider[sel_lider_key]
-                    
-                    c_lid1, c_lid2 = st.columns(2)
-                    with c_lid1:
-                        if st.button("🗑️ Eliminar Registro Seleccionado"):
-                            id_del = str(record_lider_sel['ID'])
-                            send_to_google_sheet({"action": "delete", "ID": id_del})
-                            st.session_state.deleted_ids.add(id_del)
-                            
-                            # Eliminar en memoria local para refrescar inmediatamente
-                            if not st.session_state.local_records.empty:
-                                st.session_state.local_records = st.session_state.local_records[
-                                    st.session_state.local_records["ID"].astype(str) != id_del
-                                ]
-                            st.success("¡Registro eliminado correctamente!")
-                            st.rerun()
-                    
-                    with c_lid2:
-                        curr_p_lider = str(record_lider_sel.get('Principal Producto', ''))
-                        idx_p_lider = LISTA_PRODUCTOS.index(curr_p_lider) if curr_p_lider in LISTA_PRODUCTOS else 0
-                        
-                        nuevo_prod_lider = st.selectbox("Modificar Producto:", LISTA_PRODUCTOS, index=idx_p_lider, key="lid_prod")
-                        nuevo_cierre_lider = st.selectbox("Modificar Cierre:", ["No", "Sí"], index=1 if str(record_lider_sel['Cierre']).strip().lower() in ['sí', 'si'] else 0, key="lid_cierre")
-                        nuevo_monto_lider = st.number_input("Modificar Monto COP $MM:", min_value=0, value=int(record_lider_sel.get('Monto COP$MM', 0)), step=1, key="lid_monto")
-                        
-                        if st.button("🔄 Guardar Modificación"):
-                            final_monto_lid = int(nuevo_monto_lider) if nuevo_cierre_lider == "Sí" else 0
-                            
-                            edit_payload_lider = {
-                                "action": "update",
-                                "ID": str(record_lider_sel['ID']),
-                                "Principal_Producto": nuevo_prod_lider,
-                                "Principal Producto": nuevo_prod_lider,
-                                "Cierre": nuevo_cierre_lider,
-                                "Monto_COP_MM": final_monto_lid,
-                                "Monto COP$MM": final_monto_lid,
-                                "Monto": final_monto_lid
-                            }
-                            send_to_google_sheet(edit_payload_lider)
-                            
-                            mask_lider = st.session_state.local_records["ID"].astype(str) == str(record_lider_sel['ID'])
-                            if mask_lider.any():
-                                st.session_state.local_records.loc[mask_lider, "Principal Producto"] = nuevo_prod_lider
-                                st.session_state.local_records.loc[mask_lider, "Cierre"] = nuevo_cierre_lider
-                                st.session_state.local_records.loc[mask_lider, "Monto COP$MM"] = final_monto_lid
-
-                            st.success("¡Visita actualizada correctamente!")
-                            st.rerun()
         else:
             st.info("Aún no hay visitas registradas por el equipo.")
 
