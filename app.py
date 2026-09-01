@@ -381,37 +381,14 @@ if mode == "comercial":
             m5.metric("IEP Comercial", f"{row['IEP']*100:.1f}%")
             m6.metric("Total Cierres $MM", f"{format_cop_int(row['Total_Monto_COP_MM'])} MM")
 
-            # SECCIÓN DE GRÁFICOS INDIVIDUALES (ALTURA HOMOGÉNEA = 150px)
+            # SECCIÓN DE GRÁFICOS INDIVIDUALES (2 GRÁFICOS HOMOGÉNEOS DE ALTURA 150px)
             st.markdown("#### 📊 Diagnóstico Visual de la Gestión Comercial")
-            cg1, cg2, cg3 = st.columns(3)
+            cg1, cg2 = st.columns(2)
             
             common_height = 150
             
             with cg1:
-                st.markdown("##### 🎯 1. Avance Esfuerzo vs. Meta")
-                pts_actuales = float(row['Puntos_Esfuerzo'])
-                pts_meta = float(st.session_state.config['umbral_puntos'])
-                
-                df_prog = pd.DataFrame({'Categoría': ['Puntos Acumulados'], 'Puntos': [pts_actuales]})
-                max_x = max(pts_actuales, pts_meta) * 1.12
-                
-                bar_prog = alt.Chart(df_prog).mark_bar(cornerRadiusEnd=4, color='#1F497D', size=24).encode(
-                    x=alt.X('Puntos:Q', scale=alt.Scale(domain=[0, max_x]), title=None),
-                    y=alt.Y('Categoría:N', title=None, axis=None),
-                    tooltip=[alt.Tooltip('Puntos:Q', title='Puntos Actuales', format='.1f')]
-                )
-                rule_meta = alt.Chart(pd.DataFrame({'Target': [pts_meta]})).mark_rule(
-                    color='#DC2626', strokeDash=[4, 4], size=3
-                ).encode(x='Target:Q')
-                
-                text_meta = alt.Chart(pd.DataFrame({'Target': [pts_meta], 'label': [f'Meta ({pts_meta:.1f} pts)']})).mark_text(
-                    align='center', baseline='bottom', dy=-15, color='#DC2626', fontSize=11, fontWeight='bold'
-                ).encode(x='Target:Q', text='label:N')
-                
-                st.altair_chart((bar_prog + rule_meta + text_meta).properties(height=common_height), use_container_width=True)
-
-            with cg2:
-                st.markdown("##### ⚖️ 2. Mix Clientes (Nuevos vs. Existentes)")
+                st.markdown("##### ⚖️ 1. Mix Clientes (Nuevos vs. Existentes)")
                 df_tipo_data = pd.DataFrame({
                     'Metric': ['Clientes'],
                     'Nuevo (Captación)': [int(row['Visitas_Nuevos'])],
@@ -427,8 +404,8 @@ if mode == "comercial":
                 ).properties(height=common_height)
                 st.altair_chart(chart_tipo, use_container_width=True)
 
-            with cg3:
-                st.markdown("##### 📍 3. Mix de Canal (Presencial vs. Virtual)")
+            with cg2:
+                st.markdown("##### 📍 2. Mix de Canal (Presencial vs. Virtual)")
                 df_canal_data = pd.DataFrame({
                     'Metric': ['Reuniones'],
                     'Presencial': [int(row['Visitas_Presenciales'])],
