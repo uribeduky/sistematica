@@ -381,9 +381,11 @@ if mode == "comercial":
             m5.metric("IEP Comercial", f"{row['IEP']*100:.1f}%")
             m6.metric("Total Cierres $MM", f"{format_cop_int(row['Total_Monto_COP_MM'])} MM")
 
-            # SECCIÓN DE GRÁFICOS INDIVIDUALES (REDISEÑADOS SEGÚN SOLICITUD)
+            # SECCIÓN DE GRÁFICOS INDIVIDUALES (ALTURA HOMOGÉNEA = 150px)
             st.markdown("#### 📊 Diagnóstico Visual de la Gestión Comercial")
             cg1, cg2, cg3 = st.columns(3)
+            
+            common_height = 150
             
             with cg1:
                 st.markdown("##### 🎯 1. Avance Esfuerzo vs. Meta")
@@ -406,7 +408,7 @@ if mode == "comercial":
                     align='center', baseline='bottom', dy=-15, color='#DC2626', fontSize=11, fontWeight='bold'
                 ).encode(x='Target:Q', text='label:N')
                 
-                st.altair_chart((bar_prog + rule_meta + text_meta).properties(height=130), use_container_width=True)
+                st.altair_chart((bar_prog + rule_meta + text_meta).properties(height=common_height), use_container_width=True)
 
             with cg2:
                 st.markdown("##### ⚖️ 2. Mix Clientes (Nuevos vs. Existentes)")
@@ -422,7 +424,7 @@ if mode == "comercial":
                     y=alt.Y('Metric:N', title=None, axis=None),
                     color=alt.Color('Tipo:N', scale=alt.Scale(domain=['Nuevo (Captación)', 'Existente (Mantenimiento)'], range=['#2E7D32', '#0284C7']), legend=alt.Legend(orient='bottom', title=None)),
                     tooltip=['Tipo', 'Visitas']
-                ).properties(height=130)
+                ).properties(height=common_height)
                 st.altair_chart(chart_tipo, use_container_width=True)
 
             with cg3:
@@ -439,7 +441,7 @@ if mode == "comercial":
                     y=alt.Y('Metric:N', title=None, axis=None),
                     color=alt.Color('Canal:N', scale=alt.Scale(domain=['Presencial', 'Virtual'], range=['#7C3AED', '#64748B']), legend=alt.Legend(orient='bottom', title=None)),
                     tooltip=['Canal', 'Visitas']
-                ).properties(height=130)
+                ).properties(height=common_height)
                 st.altair_chart(chart_canal, use_container_width=True)
 
             # SECCIÓN DATA ANALYTICS INDIVIDUAL + RECOMENDACIÓN COMERCIAL
