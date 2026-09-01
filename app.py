@@ -381,7 +381,7 @@ if mode == "comercial":
             m5.metric("IEP Comercial", f"{row['IEP']*100:.1f}%")
             m6.metric("Total Cierres $MM", f"{format_cop_int(row['Total_Monto_COP_MM'])} MM")
 
-            # SECCIÓN DE GRÁFICOS INDIVIDUALES (REDISEÑADOS)
+            # SECCIÓN DE GRÁFICOS INDIVIDUALES (REDISEÑADOS SEGÚN SOLICITUD)
             st.markdown("#### 📊 Diagnóstico Visual de la Gestión Comercial")
             cg1, cg2, cg3 = st.columns(3)
             
@@ -391,11 +391,11 @@ if mode == "comercial":
                 pts_meta = float(st.session_state.config['umbral_puntos'])
                 
                 df_prog = pd.DataFrame({'Categoría': ['Puntos Acumulados'], 'Puntos': [pts_actuales]})
-                max_x = max(pts_actuales, pts_meta) * 1.15
+                max_x = max(pts_actuales, pts_meta) * 1.12
                 
-                bar_prog = alt.Chart(df_prog).mark_bar(cornerRadiusEnd=4, color='#1F497D', size=26).encode(
+                bar_prog = alt.Chart(df_prog).mark_bar(cornerRadiusEnd=4, color='#1F497D', size=24).encode(
                     x=alt.X('Puntos:Q', scale=alt.Scale(domain=[0, max_x]), title=None),
-                    y=alt.Y('Categoría:N', title=None),
+                    y=alt.Y('Categoría:N', title=None, axis=None),
                     tooltip=[alt.Tooltip('Puntos:Q', title='Puntos Actuales', format='.1f')]
                 )
                 rule_meta = alt.Chart(pd.DataFrame({'Target': [pts_meta]})).mark_rule(
@@ -406,19 +406,23 @@ if mode == "comercial":
                     align='center', baseline='bottom', dy=-15, color='#DC2626', fontSize=11, fontWeight='bold'
                 ).encode(x='Target:Q', text='label:N')
                 
-                st.altair_chart((bar_prog + rule_meta + text_meta).properties(height=220), use_container_width=True)
+                st.altair_chart((bar_prog + rule_meta + text_meta).properties(height=130), use_container_width=True)
 
             with cg2:
                 st.markdown("##### ⚖️ 2. Mix Clientes (Nuevos vs. Existentes)")
-                df_tipo = pd.DataFrame({
-                    'Tipo': ['Nuevo (Captación)', 'Existente (Mantenimiento)'],
-                    'Visitas': [int(row['Visitas_Nuevos']), int(row['Visitas_Existentes'])]
+                df_tipo_data = pd.DataFrame({
+                    'Metric': ['Clientes'],
+                    'Nuevo (Captación)': [int(row['Visitas_Nuevos'])],
+                    'Existente (Mantenimiento)': [int(row['Visitas_Existentes'])]
                 })
-                chart_tipo = alt.Chart(df_tipo).mark_arc(outerRadius=88, innerRadius=42).encode(
-                    theta=alt.Theta('Visitas:Q', stack=True),
-                    color=alt.Color('Tipo:N', scale=alt.Scale(range=['#2E7D32', '#0284C7']), legend=alt.Legend(orient='bottom')),
+                df_tipo_melted = df_tipo_data.melt('Metric', var_name='Tipo', value_name='Visitas')
+                
+                chart_tipo = alt.Chart(df_tipo_melted).mark_bar(size=24).encode(
+                    x=alt.X('Visitas:Q', title=None, stack='zero'),
+                    y=alt.Y('Metric:N', title=None, axis=None),
+                    color=alt.Color('Tipo:N', scale=alt.Scale(domain=['Nuevo (Captación)', 'Existente (Mantenimiento)'], range=['#2E7D32', '#0284C7']), legend=alt.Legend(orient='bottom', title=None)),
                     tooltip=['Tipo', 'Visitas']
-                ).properties(height=240)
+                ).properties(height=130)
                 st.altair_chart(chart_tipo, use_container_width=True)
 
             with cg3:
@@ -430,12 +434,12 @@ if mode == "comercial":
                 })
                 df_canal_melted = df_canal_data.melt('Metric', var_name='Canal', value_name='Visitas')
                 
-                chart_canal = alt.Chart(df_canal_melted).mark_bar(size=26).encode(
+                chart_canal = alt.Chart(df_canal_melted).mark_bar(size=24).encode(
                     x=alt.X('Visitas:Q', title=None, stack='zero'),
                     y=alt.Y('Metric:N', title=None, axis=None),
-                    color=alt.Color('Canal:N', scale=alt.Scale(domain=['Presencial', 'Virtual'], range=['#7C3AED', '#64748B']), legend=alt.Legend(orient='bottom')),
+                    color=alt.Color('Canal:N', scale=alt.Scale(domain=['Presencial', 'Virtual'], range=['#7C3AED', '#64748B']), legend=alt.Legend(orient='bottom', title=None)),
                     tooltip=['Canal', 'Visitas']
-                ).properties(height=220)
+                ).properties(height=130)
                 st.altair_chart(chart_canal, use_container_width=True)
 
             # SECCIÓN DATA ANALYTICS INDIVIDUAL + RECOMENDACIÓN COMERCIAL
