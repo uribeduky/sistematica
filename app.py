@@ -381,25 +381,32 @@ if mode == "comercial":
             m5.metric("IEP Comercial", f"{row['IEP']*100:.1f}%")
             m6.metric("Total Cierres $MM", f"{format_cop_int(row['Total_Monto_COP_MM'])} MM")
 
-            # SECCIÓN DE GRÁFICOS INDIVIDUALES (1, 2 Y 3)
+            # SECCIÓN DE GRÁFICOS INDIVIDUALES (REDISEÑADOS)
             st.markdown("#### 📊 Diagnóstico Visual de la Gestión Comercial")
             cg1, cg2, cg3 = st.columns(3)
             
             with cg1:
                 st.markdown("##### 🎯 1. Avance Esfuerzo vs. Meta")
-                pts_actuales = row['Puntos_Esfuerzo']
-                pts_meta = st.session_state.config['umbral_puntos']
-                df_prog = pd.DataFrame({
-                    'Métrica': ['Actual', 'Meta Objetivo'],
-                    'Puntos': [pts_actuales, pts_meta]
-                })
-                chart_prog = alt.Chart(df_prog).mark_bar(cornerRadiusEnd=4).encode(
-                    x=alt.X('Puntos:Q', title=None),
-                    y=alt.Y('Métrica:N', title=None, sort=None),
-                    color=alt.Color('Métrica:N', scale=alt.Scale(domain=['Actual', 'Meta Objetivo'], range=['#1F497D', '#CBD5E1']), legend=None),
-                    tooltip=['Métrica', alt.Tooltip('Puntos:Q', format='.1f')]
-                ).properties(height=160)
-                st.altair_chart(chart_prog, use_container_width=True)
+                pts_actuales = float(row['Puntos_Esfuerzo'])
+                pts_meta = float(st.session_state.config['umbral_puntos'])
+                
+                df_prog = pd.DataFrame({'Categoría': ['Puntos Acumulados'], 'Puntos': [pts_actuales]})
+                max_x = max(pts_actuales, pts_meta) * 1.15
+                
+                bar_prog = alt.Chart(df_prog).mark_bar(cornerRadiusEnd=4, color='#1F497D', size=26).encode(
+                    x=alt.X('Puntos:Q', scale=alt.Scale(domain=[0, max_x]), title=None),
+                    y=alt.Y('Categoría:N', title=None),
+                    tooltip=[alt.Tooltip('Puntos:Q', title='Puntos Actuales', format='.1f')]
+                )
+                rule_meta = alt.Chart(pd.DataFrame({'Target': [pts_meta]})).mark_rule(
+                    color='#DC2626', strokeDash=[4, 4], size=3
+                ).encode(x='Target:Q')
+                
+                text_meta = alt.Chart(pd.DataFrame({'Target': [pts_meta], 'label': [f'Meta ({pts_meta:.1f} pts)']})).mark_text(
+                    align='center', baseline='bottom', dy=-15, color='#DC2626', fontSize=11, fontWeight='bold'
+                ).encode(x='Target:Q', text='label:N')
+                
+                st.altair_chart((bar_prog + rule_meta + text_meta).properties(height=220), use_container_width=True)
 
             with cg2:
                 st.markdown("##### ⚖️ 2. Mix Clientes (Nuevos vs. Existentes)")
@@ -407,25 +414,28 @@ if mode == "comercial":
                     'Tipo': ['Nuevo (Captación)', 'Existente (Mantenimiento)'],
                     'Visitas': [int(row['Visitas_Nuevos']), int(row['Visitas_Existentes'])]
                 })
-                chart_tipo = alt.Chart(df_tipo).mark_arc(outerRadius=75, innerRadius=35).encode(
+                chart_tipo = alt.Chart(df_tipo).mark_arc(outerRadius=88, innerRadius=42).encode(
                     theta=alt.Theta('Visitas:Q', stack=True),
                     color=alt.Color('Tipo:N', scale=alt.Scale(range=['#2E7D32', '#0284C7']), legend=alt.Legend(orient='bottom')),
                     tooltip=['Tipo', 'Visitas']
-                ).properties(height=160)
+                ).properties(height=240)
                 st.altair_chart(chart_tipo, use_container_width=True)
 
             with cg3:
                 st.markdown("##### 📍 3. Mix de Canal (Presencial vs. Virtual)")
-                df_canal = pd.DataFrame({
-                    'Canal': ['Presencial', 'Virtual'],
-                    'Visitas': [int(row['Visitas_Presenciales']), int(row['Visitas_Virtuales'])]
+                df_canal_data = pd.DataFrame({
+                    'Metric': ['Reuniones'],
+                    'Presencial': [int(row['Visitas_Presenciales'])],
+                    'Virtual': [int(row['Visitas_Virtuales'])]
                 })
-                chart_canal = alt.Chart(df_canal).mark_bar(cornerRadiusEnd=4).encode(
-                    x=alt.X('Visitas:Q', title=None),
-                    y=alt.Y('Canal:N', title=None),
-                    color=alt.Color('Canal:N', scale=alt.Scale(range=['#7C3AED', '#64748B']), legend=None),
+                df_canal_melted = df_canal_data.melt('Metric', var_name='Canal', value_name='Visitas')
+                
+                chart_canal = alt.Chart(df_canal_melted).mark_bar(size=26).encode(
+                    x=alt.X('Visitas:Q', title=None, stack='zero'),
+                    y=alt.Y('Metric:N', title=None, axis=None),
+                    color=alt.Color('Canal:N', scale=alt.Scale(domain=['Presencial', 'Virtual'], range=['#7C3AED', '#64748B']), legend=alt.Legend(orient='bottom')),
                     tooltip=['Canal', 'Visitas']
-                ).properties(height=160)
+                ).properties(height=220)
                 st.altair_chart(chart_canal, use_container_width=True)
 
             # SECCIÓN DATA ANALYTICS INDIVIDUAL + RECOMENDACIÓN COMERCIAL
