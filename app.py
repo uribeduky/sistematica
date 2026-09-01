@@ -179,7 +179,6 @@ def compute_metrics(df, config):
 def create_bar_chart_with_mean(data, x_col, color_hex, title_text):
     mean_val = data[x_col].mean()
     
-    # Renderizado en orden alfabético estricto de arriba a abajo
     bars = alt.Chart(data).mark_bar(color=color_hex, cornerRadiusEnd=4).encode(
         y=alt.Y('Director:N', title=None, sort='ascending'),
         x=alt.X(f'{x_col}:Q', title=None),
@@ -208,6 +207,63 @@ def create_bar_chart_with_mean(data, x_col, color_hex, title_text):
     )
     
     chart = (bars + rule + text_rule).properties(height=260)
+    return chart
+
+def create_pie_chart(data, col_name):
+    if data.empty or col_name not in data.columns:
+        return alt.Chart(pd.DataFrame({'msg': ['Sin datos']})).mark_text().encode(text='msg')
+    
+    df_pie = data[col_name].value_counts().reset_index()
+    df_pie.columns = [col_name, 'Count']
+    df_pie = df_pie[df_pie[col_name].astype(str).str.strip() != ""]
+    
+    if df_pie.empty:
+        return alt.Chart(pd.DataFrame({'msg': ['Sin datos']})).mark_text().encode(text='msg')
+        
+    chart = alt.Chart(df_pie).mark_arc(outerRadius=95, innerRadius=50).encode(
+        theta=alt.Theta("Count:Q"),
+        color=alt.Color(f"{col_name}:N", legend=alt.Legend(title="Producto", orient="right")),
+        tooltip=[col_name, "Count"]
+    ).properties(height=280)
+    return chart
+
+def create_line_chart(df_all, dir_filter, prod_filter):
+    df_t = df_all.copy()
+    if dir_filter != "Todos":
+        df_t = df_t[df_t["Director"] == dir_filter]
+    if prod_filter != "Todos":
+        df_t = df_t[df_t["Principal Producto"] == prod_filter]
+        
+    if df_t.empty:
+        return alt.Chart(pd.DataFrame({'msg': ['Sin datos']})).mark_text().encode(text='msg')
+        
+    df_t["Es_Nuevo"] = df_t["Tipo Cliente"].apply(lambda x: 1 if "Nuevo" in str(x) or "Captación" in str(x) else 0)
+    df_t["Es_Cierre"] = df_t["Cierre"].apply(lambda x: 1 if str(x).strip().lower() in ["sí", "si"] else 0)
+    
+    trend = df_t.groupby("Mes_Año").agg(
+        Visitas_Totales=("Fecha", "count"),
+        Clientes_Nuevos=("Es_Nuevo", "sum"),
+        Cierres=("Es_Cierre", "sum")
+    ).reset_index().sort_values("Mes_Año")
+    
+    if trend.empty:
+        return alt.Chart(pd.DataFrame({'msg': ['Sin datos']})).mark_text().encode(text='msg')
+        
+    trend_melted = trend.melt('Mes_Año', var_name='Métrica', value_name='Valor')
+    
+    metric_names = {
+        'Visitas_Totales': 'Visitas Totales',
+        'Clientes_Nuevos': 'Clientes Nuevos',
+        'Cierres': 'Cierres'
+    }
+    trend_melted['Métrica'] = trend_melted['Métrica'].map(metric_names)
+    
+    chart = alt.Chart(trend_melted).mark_line(point=True, strokeWidth=2.5).encode(
+        x=alt.X('Mes_Año:N', title='Mes'),
+        y=alt.Y('Valor:Q', title='Cantidad'),
+        color=alt.Color('Métrica:N', scale=alt.Scale(domain=['Visitas Totales', 'Clientes Nuevos', 'Cierres'], range=['#1F497D', '#2E7D32', '#D81B60']), legend=alt.Legend(title="Indicador", orient="bottom")),
+        tooltip=['Mes_Año:N', 'Métrica:N', 'Valor:Q']
+    ).properties(height=280)
     return chart
 
 query_params = st.query_params
@@ -494,7 +550,7 @@ elif mode == "lider":
 
                 st.divider()
 
-                # SECCIÓN DE GRÁFICOS CON LÍNEA VERTICAL DISCRETA (MEDIA) Y DIRECTORES ALFABÉTICOS
+                # SECCIÓN DE GRÁFICOS DE BARRAS HORIZONTALES
                 st.subheader("📈 Comparativos por Comercial")
                 
                 chart_df = global_summary.sort_values("Director", ascending=True).copy()
@@ -515,6 +571,22 @@ elif mode == "lider":
                     st.markdown("##### 🤝 Número de Cierres")
                     chart_c = create_bar_chart_with_mean(chart_df, "Cierres", "#D81B60", "Cierres")
                     st.altair_chart(chart_c, use_container_width=True)
+
+                st.divider()
+
+                # NUEVA SECCIÓN DE GRÁFICOS: PIE (PRODUCTO) Y LÍNEA (EVOLUCIÓN TEMPORAL)
+                st.subheader("📊 Distribución por Producto y Evolución Histórica")
+                
+                col_p1, col_p2 = st.columns(2)
+                with col_p1:
+                    st.markdown("##### 📦 Distribución de Visitas por Producto")
+                    pie_chart_obj = create_pie_chart(records_month, "Principal Producto")
+                    st.altair_chart(pie_chart_obj, use_container_width=True)
+                    
+                with col_p2:
+                    st.markdown("##### 📈 Evolución Histórica por Mes")
+                    line_chart_obj = create_line_chart(records_df, dir_global_filter, prod_global_filter)
+                    st.altair_chart(line_chart_obj, use_container_width=True)
 
                 st.divider()
                 st.subheader(f"📋 Rendimiento del Equipo - Período {mes_global}")
