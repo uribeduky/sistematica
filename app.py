@@ -223,14 +223,14 @@ def create_pie_chart(data, col_name):
     total_count = df_pie['Count'].sum()
     df_pie['Percentage'] = (df_pie['Count'] / total_count * 100).round(1)
     
-    # Ordenar descendentemente para extraer el Top 3
+    # Ordenar por volumen para identificar los 3 productos de mayor participación
     df_pie = df_pie.sort_values(by='Count', ascending=False).reset_index(drop=True)
-    df_pie['Label'] = df_pie.apply(lambda r: f"{r['Percentage']}%" if r.name < 3 else "", axis=1)
+    df_pie['Label'] = df_pie.apply(lambda r: f"{r['Percentage']:.1f}%" if r.name < 3 else "", axis=1)
 
     base = alt.Chart(df_pie).encode(
         theta=alt.Theta("Count:Q", stack=True),
         color=alt.Color(f"{col_name}:N", legend=alt.Legend(title="Producto", orient="right")),
-        tooltip=[col_name, "Count", alt.Tooltip("Percentage:Q", format=".1f", title="Porcentaje (%)")]
+        tooltip=[col_name, "Count", alt.Tooltip("Percentage:Q", format=".1f", title="Porcentaje de Participación (%)")]
     )
 
     arcs = base.mark_arc(outerRadius=95, innerRadius=50)
@@ -588,12 +588,12 @@ elif mode == "lider":
 
                 st.divider()
 
-                # SECCIÓN DE GRÁFICOS: PIE (PRODUCTO CON TOP 3 PORCENTAJES) Y LÍNEA (EVOLUCIÓN TEMPORAL)
+                # SECCIÓN DE GRÁFICOS: PIE (PORCENTAJE DE LOS 3 PRODUCTOS CON MAYOR PARTICIPACIÓN) Y LÍNEA (EVOLUCIÓN TEMPORAL)
                 st.subheader("📊 Distribución por Producto y Evolución Histórica")
                 
                 col_p1, col_p2 = st.columns(2)
                 with col_p1:
-                    st.markdown("##### 📦 Distribución de Visitas por Producto (Top 3 %)")
+                    st.markdown("##### 📦 Distribución de Visitas por Producto (Top 3 Mayor Participación)")
                     pie_chart_obj = create_pie_chart(records_month, "Principal Producto")
                     st.altair_chart(pie_chart_obj, use_container_width=True)
                     
