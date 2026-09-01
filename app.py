@@ -219,13 +219,27 @@ def create_pie_chart(data, col_name):
     
     if df_pie.empty:
         return alt.Chart(pd.DataFrame({'msg': ['Sin datos']})).mark_text().encode(text='msg')
-        
-    chart = alt.Chart(df_pie).mark_arc(outerRadius=95, innerRadius=50).encode(
-        theta=alt.Theta("Count:Q"),
+    
+    total_count = df_pie['Count'].sum()
+    df_pie['Percentage'] = (df_pie['Count'] / total_count * 100).round(1)
+    
+    # Ordenar descendentemente para extraer el Top 3
+    df_pie = df_pie.sort_values(by='Count', ascending=False).reset_index(drop=True)
+    df_pie['Label'] = df_pie.apply(lambda r: f"{r['Percentage']}%" if r.name < 3 else "", axis=1)
+
+    base = alt.Chart(df_pie).encode(
+        theta=alt.Theta("Count:Q", stack=True),
         color=alt.Color(f"{col_name}:N", legend=alt.Legend(title="Producto", orient="right")),
-        tooltip=[col_name, "Count"]
-    ).properties(height=280)
-    return chart
+        tooltip=[col_name, "Count", alt.Tooltip("Percentage:Q", format=".1f", title="Porcentaje (%)")]
+    )
+
+    arcs = base.mark_arc(outerRadius=95, innerRadius=50)
+    
+    text = base.mark_text(radius=72, size=11, fontWeight='bold', color='white').encode(
+        text=alt.Text("Label:N")
+    )
+
+    return (arcs + text).properties(height=280)
 
 def create_line_chart(df_all, dir_filter, prod_filter):
     df_t = df_all.copy()
@@ -574,12 +588,12 @@ elif mode == "lider":
 
                 st.divider()
 
-                # NUEVA SECCIÓN DE GRÁFICOS: PIE (PRODUCTO) Y LÍNEA (EVOLUCIÓN TEMPORAL)
+                # SECCIÓN DE GRÁFICOS: PIE (PRODUCTO CON TOP 3 PORCENTAJES) Y LÍNEA (EVOLUCIÓN TEMPORAL)
                 st.subheader("📊 Distribución por Producto y Evolución Histórica")
                 
                 col_p1, col_p2 = st.columns(2)
                 with col_p1:
-                    st.markdown("##### 📦 Distribución de Visitas por Producto")
+                    st.markdown("##### 📦 Distribución de Visitas por Producto (Top 3 %)")
                     pie_chart_obj = create_pie_chart(records_month, "Principal Producto")
                     st.altair_chart(pie_chart_obj, use_container_width=True)
                     
