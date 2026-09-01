@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import datetime
 import requests
+import altair as alt
 
 # Configuration
 st.set_page_config(
@@ -174,6 +175,39 @@ def compute_metrics(df, config):
     summary["IEP"] = summary["Tasa_Conversion"] * summary["Factor_Actividad"]
     
     return summary
+
+def create_bar_chart_with_mean(data, x_col, color_hex, title_text):
+    mean_val = data[x_col].mean()
+    
+    bars = alt.Chart(data).mark_bar(color=color_hex, cornerRadiusEnd=4).encode(
+        y=alt.Y('Director:N', title=None, sort='-x'),
+        x=alt.X(f'{x_col}:Q', title=None),
+        tooltip=['Director', alt.Tooltip(f'{x_col}:Q', title=title_text)]
+    )
+    
+    rule = alt.Chart(pd.DataFrame({'media': [mean_val]})).mark_rule(
+        color='#DC2626',
+        strokeDash=[4, 4],
+        size=2
+    ).encode(
+        x='media:Q'
+    )
+    
+    text_rule = alt.Chart(pd.DataFrame({'media': [mean_val], 'label': [f'Media: {mean_val:.1f}']})).mark_text(
+        align='left',
+        baseline='bottom',
+        dx=5,
+        dy=-5,
+        color='#DC2626',
+        fontSize=11,
+        fontWeight='bold'
+    ).encode(
+        x='media:Q',
+        text='label:N'
+    )
+    
+    chart = (bars + rule + text_rule).properties(height=260)
+    return chart
 
 query_params = st.query_params
 mode = query_params.get("modo", "comercial")
@@ -459,7 +493,7 @@ elif mode == "lider":
 
                 st.divider()
 
-                # SECCIÓN DE GRÁFICOS DE BARRAS HORIZONTALES
+                # SECCIÓN DE GRÁFICOS CON LÍNEA VERTICAL DISCRETA (MEDIA)
                 st.subheader("📈 Comparativos por Comercial")
                 
                 chart_df = global_summary.sort_values("Director", ascending=True).copy()
@@ -468,18 +502,18 @@ elif mode == "lider":
                 
                 with col_g1:
                     st.markdown("##### 📍 Visitas Totales por Comercial")
-                    df_v = chart_df.set_index("Director")[["Visitas_Totales"]]
-                    st.bar_chart(df_v, horizontal=True, color="#1F497D")
+                    chart_v = create_bar_chart_with_mean(chart_df, "Visitas_Totales", "#1F497D", "Visitas Totales")
+                    st.altair_chart(chart_v, use_container_width=True)
 
                 with col_g2:
                     st.markdown("##### 🎯 Visitas a Clientes Nuevos")
-                    df_n = chart_df.set_index("Director")[["Visitas_Nuevos"]]
-                    st.bar_chart(df_n, horizontal=True, color="#2E7D32")
+                    chart_n = create_bar_chart_with_mean(chart_df, "Visitas_Nuevos", "#2E7D32", "Visitas Nuevos")
+                    st.altair_chart(chart_n, use_container_width=True)
 
                 with col_g3:
                     st.markdown("##### 🤝 Número de Cierres")
-                    df_c = chart_df.set_index("Director")[["Cierres"]]
-                    st.bar_chart(df_c, horizontal=True, color="#D81B60")
+                    chart_c = create_bar_chart_with_mean(chart_df, "Cierres", "#D81B60", "Cierres")
+                    st.altair_chart(chart_c, use_container_width=True)
 
                 st.divider()
                 st.subheader(f"📋 Rendimiento del Equipo - Período {mes_global}")
