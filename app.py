@@ -222,31 +222,19 @@ def create_pie_chart(data, col_name):
     
     total_count = df_pie['Count'].sum()
     df_pie['Percentage'] = (df_pie['Count'] / total_count * 100).round(1)
-    
-    # Ordenar por volumen para identificar los 3 productos con mayor participación
     df_pie = df_pie.sort_values(by='Count', ascending=False).reset_index(drop=True)
     
-    # Etiqueta visible en la Leyenda y en la porción para los 3 primeros productos
     df_pie['Producto_Leyenda'] = df_pie.apply(
         lambda r: f"{r[col_name]} ({r['Percentage']:.1f}%)" if r.name < 3 else str(r[col_name]), axis=1
     )
-    df_pie['Label_Grafico'] = df_pie.apply(
-        lambda r: f"{r['Percentage']:.1f}%" if r.name < 3 else "", axis=1
-    )
 
-    base = alt.Chart(df_pie).encode(
+    chart = alt.Chart(df_pie).mark_arc(outerRadius=98, innerRadius=45).encode(
         theta=alt.Theta("Count:Q", stack=True),
         color=alt.Color("Producto_Leyenda:N", legend=alt.Legend(title="Producto (% Top 3)", orient="right")),
         tooltip=[col_name, "Count", alt.Tooltip("Percentage:Q", format=".1f", title="Porcentaje (%)")]
-    )
+    ).properties(height=280)
 
-    arcs = base.mark_arc(outerRadius=100, innerRadius=40)
-    
-    text = base.mark_text(radius=70, size=12, fontWeight='bold', color='white').encode(
-        text=alt.Text("Label_Grafico:N")
-    )
-
-    return (arcs + text).properties(height=280)
+    return chart
 
 def create_line_chart(df_all, dir_filter, prod_filter):
     df_t = df_all.copy()
@@ -393,8 +381,55 @@ if mode == "comercial":
             m5.metric("IEP Comercial", f"{row['IEP']*100:.1f}%")
             m6.metric("Total Cierres $MM", f"{format_cop_int(row['Total_Monto_COP_MM'])} MM")
 
+            # SECCIÓN DE GRÁFICOS INDIVIDUALES (1, 2 Y 3)
+            st.markdown("#### 📊 Diagnóstico Visual de la Gestión Comercial")
+            cg1, cg2, cg3 = st.columns(3)
+            
+            with cg1:
+                st.markdown("##### 🎯 1. Avance Esfuerzo vs. Meta")
+                pts_actuales = row['Puntos_Esfuerzo']
+                pts_meta = st.session_state.config['umbral_puntos']
+                df_prog = pd.DataFrame({
+                    'Métrica': ['Actual', 'Meta Objetivo'],
+                    'Puntos': [pts_actuales, pts_meta]
+                })
+                chart_prog = alt.Chart(df_prog).mark_bar(cornerRadiusEnd=4).encode(
+                    x=alt.X('Puntos:Q', title=None),
+                    y=alt.Y('Métrica:N', title=None, sort=None),
+                    color=alt.Color('Métrica:N', scale=alt.Scale(domain=['Actual', 'Meta Objetivo'], range=['#1F497D', '#CBD5E1']), legend=None),
+                    tooltip=['Métrica', alt.Tooltip('Puntos:Q', format='.1f')]
+                ).properties(height=160)
+                st.altair_chart(chart_prog, use_container_width=True)
+
+            with cg2:
+                st.markdown("##### ⚖️ 2. Mix Clientes (Nuevos vs. Existentes)")
+                df_tipo = pd.DataFrame({
+                    'Tipo': ['Nuevo (Captación)', 'Existente (Mantenimiento)'],
+                    'Visitas': [int(row['Visitas_Nuevos']), int(row['Visitas_Existentes'])]
+                })
+                chart_tipo = alt.Chart(df_tipo).mark_arc(outerRadius=75, innerRadius=35).encode(
+                    theta=alt.Theta('Visitas:Q', stack=True),
+                    color=alt.Color('Tipo:N', scale=alt.Scale(range=['#2E7D32', '#0284C7']), legend=alt.Legend(orient='bottom')),
+                    tooltip=['Tipo', 'Visitas']
+                ).properties(height=160)
+                st.altair_chart(chart_tipo, use_container_width=True)
+
+            with cg3:
+                st.markdown("##### 📍 3. Mix de Canal (Presencial vs. Virtual)")
+                df_canal = pd.DataFrame({
+                    'Canal': ['Presencial', 'Virtual'],
+                    'Visitas': [int(row['Visitas_Presenciales']), int(row['Visitas_Virtuales'])]
+                })
+                chart_canal = alt.Chart(df_canal).mark_bar(cornerRadiusEnd=4).encode(
+                    x=alt.X('Visitas:Q', title=None),
+                    y=alt.Y('Canal:N', title=None),
+                    color=alt.Color('Canal:N', scale=alt.Scale(range=['#7C3AED', '#64748B']), legend=None),
+                    tooltip=['Canal', 'Visitas']
+                ).properties(height=160)
+                st.altair_chart(chart_canal, use_container_width=True)
+
             # SECCIÓN DATA ANALYTICS INDIVIDUAL + RECOMENDACIÓN COMERCIAL
-            with st.expander("💡 Data Analytics", expanded=True):
+            with st.expander("💡 Data Analytics & Recomendación", expanded=True):
                 u_visitas = len(user_records_month)
                 u_cierres = int(row["Cierres"])
                 u_monto = row["Total_Monto_COP_MM"]
@@ -595,7 +630,7 @@ elif mode == "lider":
 
                 st.divider()
 
-                # SECCIÓN DE GRÁFICOS: PIE (DISTRIBUCIÓN POR PRODUCTO) Y LÍNEA (EVOLUCIÓN HISTÓRICA)
+                # SECCIÓN DE GRÁFICOS: PIE Y LÍNEA
                 st.subheader("📊 Distribución por Producto y Evolución Histórica")
                 
                 col_p1, col_p2 = st.columns(2)
