@@ -36,8 +36,8 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Directores
-LISTA_DIRECTORES = [
+# Directores ordenados alfabéticamente
+LISTA_DIRECTORES = sorted([
     "Claudia Céspedes",
     "Claudia Lizarralde",
     "Gloria Lamus",
@@ -45,7 +45,7 @@ LISTA_DIRECTORES = [
     "Laura Gómez",
     "María Camila León",
     "Nicolás Quintero"
-]
+])
 
 # Productos actualizados
 LISTA_PRODUCTOS = [
@@ -179,8 +179,9 @@ def compute_metrics(df, config):
 def create_bar_chart_with_mean(data, x_col, color_hex, title_text):
     mean_val = data[x_col].mean()
     
+    # Renderizado en orden alfabético estricto de arriba a abajo
     bars = alt.Chart(data).mark_bar(color=color_hex, cornerRadiusEnd=4).encode(
-        y=alt.Y('Director:N', title=None, sort='-x'),
+        y=alt.Y('Director:N', title=None, sort='ascending'),
         x=alt.X(f'{x_col}:Q', title=None),
         tooltip=['Director', alt.Tooltip(f'{x_col}:Q', title=title_text)]
     )
@@ -493,7 +494,7 @@ elif mode == "lider":
 
                 st.divider()
 
-                # SECCIÓN DE GRÁFICOS CON LÍNEA VERTICAL DISCRETA (MEDIA)
+                # SECCIÓN DE GRÁFICOS CON LÍNEA VERTICAL DISCRETA (MEDIA) Y DIRECTORES ALFABÉTICOS
                 st.subheader("📈 Comparativos por Comercial")
                 
                 chart_df = global_summary.sort_values("Director", ascending=True).copy()
@@ -522,7 +523,7 @@ elif mode == "lider":
                     "Director", "Visitas_Totales", "Visitas_Presenciales", "Visitas_Virtuales",
                     "Visitas_Nuevos", "Visitas_Existentes", "Puntos_Esfuerzo", "Factor_Actividad",
                     "Cierres", "Total_Monto_COP_MM", "Tasa_Conversion", "IEP"
-                ]].copy()
+                ]].sort_values("Director", ascending=True).copy()
 
                 display_df["Total_Monto_COP_MM"] = display_df["Total_Monto_COP_MM"].apply(format_cop_int)
                 display_df.rename(columns={"Total_Monto_COP_MM": "Monto Total ($MM)"}, inplace=True)
