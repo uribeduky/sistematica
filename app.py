@@ -223,19 +223,19 @@ def create_pie_chart(data, col_name):
     total_count = df_pie['Count'].sum()
     df_pie['Percentage'] = (df_pie['Count'] / total_count * 100).round(1)
     
-    # Ordenar por volumen para identificar los 3 productos de mayor participación
+    # Ordenar por volumen para identificar únicamente los 3 productos de mayor participación
     df_pie = df_pie.sort_values(by='Count', ascending=False).reset_index(drop=True)
-    df_pie['Label'] = df_pie.apply(lambda r: f"{r['Percentage']:.1f}%" if r.name < 3 else "", axis=1)
+    df_pie['Label'] = df_pie.apply(lambda r: f"{r['Percentage']:.1f}%" if r.name < 3 and r['Percentage'] > 0 else "", axis=1)
 
     base = alt.Chart(df_pie).encode(
         theta=alt.Theta("Count:Q", stack=True),
         color=alt.Color(f"{col_name}:N", legend=alt.Legend(title="Producto", orient="right")),
-        tooltip=[col_name, "Count", alt.Tooltip("Percentage:Q", format=".1f", title="Porcentaje de Participación (%)")]
+        tooltip=[col_name, "Count", alt.Tooltip("Percentage:Q", format=".1f", title="Porcentaje (%)")]
     )
 
-    arcs = base.mark_arc(outerRadius=95, innerRadius=50)
+    arcs = base.mark_arc(outerRadius=98, innerRadius=45)
     
-    text = base.mark_text(radius=72, size=11, fontWeight='bold', color='white').encode(
+    text = base.mark_text(radius=72, size=12, fontWeight='bold', color='black').encode(
         text=alt.Text("Label:N")
     )
 
@@ -412,7 +412,7 @@ if mode == "comercial":
                 if u_pts < st.session_state.config["umbral_puntos"]:
                     st.info(f"💡 **Recomendación Comercial:** Tu nivel de esfuerzo actual ({u_pts:.1f} pts) está por debajo del umbral objetivo ({st.session_state.config['umbral_puntos']} pts). Agendar reuniones presenciales adicionales o enfocar la semana en prospección de clientes nuevos te ayudará a alcanzar la meta rápidamente.")
                 elif u_pct_nuevos < 40:
-                    st.warning("💡 **Recomendación Comercial:** Tu agenda está inclinada principalmente hacia mantenimiento de clientes existentes. Para maximizar tus puntos de esfuerzo, intenta balancear tus llamadas integrando nuevas cuentas de captación.")
+                    st.warning("💡 **Recomendación Comercial:** Tu agenda está inclinada principalmente hacia mantenimiento de clientes existentes. Para maximizer tus puntos de esfuerzo, intenta balancear tus llamadas integrando nuevas cuentas de captación.")
                 else:
                     st.success("💡 **Recomendación Comercial:** Excelente balance de esfuerzo y prospección. Mantener el ritmo de conversión actual para consolidar el IEP del período.")
 
@@ -588,12 +588,12 @@ elif mode == "lider":
 
                 st.divider()
 
-                # SECCIÓN DE GRÁFICOS: PIE (PORCENTAJE DE LOS 3 PRODUCTOS CON MAYOR PARTICIPACIÓN) Y LÍNEA (EVOLUCIÓN TEMPORAL)
+                # SECCIÓN DE GRÁFICOS: PIE (DISTRIBUCIÓN POR PRODUCTO) Y LÍNEA (EVOLUCIÓN HISTÓRICA)
                 st.subheader("📊 Distribución por Producto y Evolución Histórica")
                 
                 col_p1, col_p2 = st.columns(2)
                 with col_p1:
-                    st.markdown("##### 📦 Distribución de Visitas por Producto (Top 3 Mayor Participación)")
+                    st.markdown("##### 📦 Distribución de Visitas por Producto")
                     pie_chart_obj = create_pie_chart(records_month, "Principal Producto")
                     st.altair_chart(pie_chart_obj, use_container_width=True)
                     
