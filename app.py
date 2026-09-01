@@ -223,20 +223,27 @@ def create_pie_chart(data, col_name):
     total_count = df_pie['Count'].sum()
     df_pie['Percentage'] = (df_pie['Count'] / total_count * 100).round(1)
     
-    # Ordenar por volumen para identificar únicamente los 3 productos de mayor participación
+    # Ordenar por volumen para identificar los 3 productos con mayor participación
     df_pie = df_pie.sort_values(by='Count', ascending=False).reset_index(drop=True)
-    df_pie['Label'] = df_pie.apply(lambda r: f"{r['Percentage']:.1f}%" if r.name < 3 and r['Percentage'] > 0 else "", axis=1)
+    
+    # Etiqueta visible en la Leyenda y en la porción para los 3 primeros productos
+    df_pie['Producto_Leyenda'] = df_pie.apply(
+        lambda r: f"{r[col_name]} ({r['Percentage']:.1f}%)" if r.name < 3 else str(r[col_name]), axis=1
+    )
+    df_pie['Label_Grafico'] = df_pie.apply(
+        lambda r: f"{r['Percentage']:.1f}%" if r.name < 3 else "", axis=1
+    )
 
     base = alt.Chart(df_pie).encode(
         theta=alt.Theta("Count:Q", stack=True),
-        color=alt.Color(f"{col_name}:N", legend=alt.Legend(title="Producto", orient="right")),
+        color=alt.Color("Producto_Leyenda:N", legend=alt.Legend(title="Producto (% Top 3)", orient="right")),
         tooltip=[col_name, "Count", alt.Tooltip("Percentage:Q", format=".1f", title="Porcentaje (%)")]
     )
 
-    arcs = base.mark_arc(outerRadius=98, innerRadius=45)
+    arcs = base.mark_arc(outerRadius=100, innerRadius=40)
     
-    text = base.mark_text(radius=72, size=12, fontWeight='bold', color='black').encode(
-        text=alt.Text("Label:N")
+    text = base.mark_text(radius=70, size=12, fontWeight='bold', color='white').encode(
+        text=alt.Text("Label_Grafico:N")
     )
 
     return (arcs + text).properties(height=280)
@@ -412,7 +419,7 @@ if mode == "comercial":
                 if u_pts < st.session_state.config["umbral_puntos"]:
                     st.info(f"💡 **Recomendación Comercial:** Tu nivel de esfuerzo actual ({u_pts:.1f} pts) está por debajo del umbral objetivo ({st.session_state.config['umbral_puntos']} pts). Agendar reuniones presenciales adicionales o enfocar la semana en prospección de clientes nuevos te ayudará a alcanzar la meta rápidamente.")
                 elif u_pct_nuevos < 40:
-                    st.warning("💡 **Recomendación Comercial:** Tu agenda está inclinada principalmente hacia mantenimiento de clientes existentes. Para maximizer tus puntos de esfuerzo, intenta balancear tus llamadas integrando nuevas cuentas de captación.")
+                    st.warning("💡 **Recomendación Comercial:** Tu agenda está inclinada principalmente hacia mantenimiento de clientes existentes. Para maximizar tus puntos de esfuerzo, intenta balancear tus llamadas integrando nuevas cuentas de captación.")
                 else:
                     st.success("💡 **Recomendación Comercial:** Excelente balance de esfuerzo y prospección. Mantener el ritmo de conversión actual para consolidar el IEP del período.")
 
