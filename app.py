@@ -4,6 +4,7 @@ import numpy as np
 import datetime
 import requests
 import altair as alt
+import plotly.express as px
 
 # Configuration
 st.set_page_config(
@@ -209,44 +210,51 @@ def create_bar_chart_with_mean(data, x_col, color_hex, title_text):
     chart = (bars + rule + text_rule).properties(height=260)
     return chart
 
-def create_pie_chart(data, col_name):
+def create_pie_chart_plotly(data, col_name):
     if data.empty or col_name not in data.columns:
-        return alt.Chart(pd.DataFrame({'msg': ['Sin datos']})).mark_text().encode(text='msg')
+        return px.pie(title="Sin datos")
     
     df_pie = data[col_name].value_counts().reset_index()
     df_pie.columns = [col_name, 'Count']
     df_pie = df_pie[df_pie[col_name].astype(str).str.strip() != ""]
     
     if df_pie.empty:
-        return alt.Chart(pd.DataFrame({'msg': ['Sin datos']})).mark_text().encode(text='msg')
+        return px.pie(title="Sin datos")
     
     total_count = df_pie['Count'].sum()
     df_pie['Percentage'] = (df_pie['Count'] / total_count * 100).round(1)
     
-    # Ordenar por volumen para identificar los 3 productos con mayor participación
+    # Ordenar para identificar el Top 3
     df_pie = df_pie.sort_values(by='Count', ascending=False).reset_index(drop=True)
     
-    # Etiqueta visible en la Leyenda y en la porción para los 3 primeros productos
-    df_pie['Producto_Leyenda'] = df_pie.apply(
-        lambda r: f"{r[col_name]} ({r['Percentage']:.1f}%)" if r.name < 3 else str(r[col_name]), axis=1
-    )
-    df_pie['Label_Grafico'] = df_pie.apply(
-        lambda r: f"{r['Percentage']:.1f}%" if r.name < 3 else "", axis=1
+    # Etiqueta interna solo para los 3 primeros productos de mayor participación
+    df_pie['Label_Inside'] = df_pie.apply(
+        lambda r: f"<b>{r['Percentage']:.1f}%</b>" if r.name < 3 and r['Percentage'] > 0 else "", axis=1
     )
 
-    base = alt.Chart(df_pie).encode(
-        theta=alt.Theta("Count:Q", stack=True),
-        color=alt.Color("Producto_Leyenda:N", legend=alt.Legend(title="Producto (% Top 3)", orient="right")),
-        tooltip=[col_name, "Count", alt.Tooltip("Percentage:Q", format=".1f", title="Porcentaje (%)")]
+    fig = px.pie(
+        df_pie,
+        values='Count',
+        names=col_name,
+        hole=0.45,
+        color_discrete_sequence=px.colors.qualitative.Set2
     )
-
-    arcs = base.mark_arc(outerRadius=100, innerRadius=40)
     
-    text = base.mark_text(radius=70, size=12, fontWeight='bold', color='white').encode(
-        text=alt.Text("Label_Grafico:N")
+    fig.update_traces(
+        text=df_pie['Label_Inside'],
+        textinfo='text',
+        textposition='inside',
+        insidetextfont=dict(size=14, color='white'),
+        hovertemplate="<b>%{label}</b><br>Visitas: %{value}<br>Participación: %{percent}"
     )
-
-    return (arcs + text).properties(height=280)
+    
+    fig.update_layout(
+        margin=dict(t=10, b=10, l=10, r=10),
+        height=280,
+        legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1.05)
+    )
+    
+    return fig
 
 def create_line_chart(df_all, dir_filter, prod_filter):
     df_t = df_all.copy()
@@ -595,14 +603,14 @@ elif mode == "lider":
 
                 st.divider()
 
-                # SECCIÓN DE GRÁFICOS: PIE (DISTRIBUCIÓN POR PRODUCTO) Y LÍNEA (EVOLUCIÓN HISTÓRICA)
+                # SECCIÓN DE GRÁFICOS: PIE (PLOTLY DENTRO DEL PIE) Y LÍNEA (EVOLUCIÓN HISTÓRICA)
                 st.subheader("📊 Distribución por Producto y Evolución Histórica")
                 
                 col_p1, col_p2 = st.columns(2)
                 with col_p1:
                     st.markdown("##### 📦 Distribución de Visitas por Producto")
-                    pie_chart_obj = create_pie_chart(records_month, "Principal Producto")
-                    st.altair_chart(pie_chart_obj, use_container_width=True)
+                    pie_chart_fig = create_pie_chart_plotly(records_month, "Principal Producto")
+                    st.plotly_chart(pie_chart_fig, use_container_width=True)
                     
                 with col_p2:
                     st.markdown("##### 📈 Evolución Histórica por Mes")
