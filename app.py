@@ -75,7 +75,7 @@ if "config" not in st.session_state:
     st.session_state.config = DEFAULT_CONFIG
 
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1c_3WF_RyzgtsHyr6MlPnVGYFvBfjveUIKCe6RRQdAws/export?format=csv"
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycbygEDwxPfnRBh1Zd9Lw3umwjgNSfqsaGartAOlo4JetINImWvoHNIUBMLFptWv8Gbx7Pw/exec"
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxe5DtYRWvWtFCNvnJTXdtU45Un2GYcqkcUVwszoEr_vsisalLRZBhLwobTwu6zkkiDpg/exec"
 
 if "local_records" not in st.session_state:
     st.session_state.local_records = pd.DataFrame(columns=[
@@ -456,6 +456,30 @@ elif mode == "lider":
                         st.warning("💡 **Recomendación Comercial:** La mayor parte de la agenda está concentrada en mantenimiento de clientes existentes. Se recomienda motivar la prospección activa de clientes nuevos para aprovechar el multiplicador de captación (1.5x).")
                     else:
                         st.success("💡 **Recomendación Comercial:** Excelente balance de esfuerzo y mezcla de prospectos. Mantener el ritmo de cierres en los productos foco.")
+
+                st.divider()
+
+                # SECCIÓN DE GRÁFICOS DE BARRAS HORIZONTALES
+                st.subheader("📈 Comparativos por Comercial")
+                
+                chart_df = global_summary.sort_values("Director", ascending=True).copy()
+                
+                col_g1, col_g2, col_g3 = st.columns(3)
+                
+                with col_g1:
+                    st.markdown("##### 📍 Visitas Totales por Comercial")
+                    df_v = chart_df.set_index("Director")[["Visitas_Totales"]]
+                    st.bar_chart(df_v, horizontal=True, color="#1F497D")
+
+                with col_g2:
+                    st.markdown("##### 🎯 Visitas a Clientes Nuevos")
+                    df_n = chart_df.set_index("Director")[["Visitas_Nuevos"]]
+                    st.bar_chart(df_n, horizontal=True, color="#2E7D32")
+
+                with col_g3:
+                    st.markdown("##### 🤝 Número de Cierres")
+                    df_c = chart_df.set_index("Director")[["Cierres"]]
+                    st.bar_chart(df_c, horizontal=True, color="#D81B60")
 
                 st.divider()
                 st.subheader(f"📋 Rendimiento del Equipo - Período {mes_global}")
