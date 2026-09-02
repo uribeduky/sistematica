@@ -381,11 +381,12 @@ if mode == "comercial":
             m5.metric("IEP Comercial", f"{row['IEP']*100:.1f}%")
             m6.metric("Total Cierres $MM", f"{format_cop_int(row['Total_Monto_COP_MM'])} MM")
 
-            # SECCIÓN DE GRÁFICOS INDIVIDUALES EN PORCENTAJE (100% STACKED)
+            # SECCIÓN DE GRÁFICOS INDIVIDUALES EN PORCENTAJE (RANGOS DE 10 EN 10)
             st.markdown("#### 📊 Diagnóstico Visual de la Gestión Comercial (%)")
             cg1, cg2 = st.columns(2)
             
             common_height = 150
+            ticks_10 = list(range(0, 101, 10))
             
             with cg1:
                 st.markdown("##### ⚖️ 1. Mix Clientes (% Nuevos vs. Existentes)")
@@ -399,7 +400,7 @@ if mode == "comercial":
                 ])
                 
                 chart_tipo = alt.Chart(df_tipo_data).mark_bar(size=24).encode(
-                    x=alt.X('Porcentaje:Q', scale=alt.Scale(domain=[0, 100]), title="Porcentaje (%)"),
+                    x=alt.X('Porcentaje:Q', scale=alt.Scale(domain=[0, 100]), axis=alt.Axis(values=ticks_10, title="Porcentaje (%)")),
                     y=alt.Y('Metric:N', title=None, axis=None),
                     color=alt.Color('Tipo:N', scale=alt.Scale(domain=['Nuevo (Captación)', 'Existente (Mantenimiento)'], range=['#2E7D32', '#0284C7']), legend=alt.Legend(orient='bottom', title=None)),
                     tooltip=['Tipo:N', alt.Tooltip('Visitas:Q', title='Visitas Totales'), alt.Tooltip('Porcentaje:Q', title='Porcentaje (%)', format='.1f')]
@@ -418,7 +419,7 @@ if mode == "comercial":
                 ])
                 
                 chart_canal = alt.Chart(df_canal_data).mark_bar(size=24).encode(
-                    x=alt.X('Porcentaje:Q', scale=alt.Scale(domain=[0, 100]), title="Porcentaje (%)"),
+                    x=alt.X('Porcentaje:Q', scale=alt.Scale(domain=[0, 100]), axis=alt.Axis(values=ticks_10, title="Porcentaje (%)")),
                     y=alt.Y('Metric:N', title=None, axis=None),
                     color=alt.Color('Canal:N', scale=alt.Scale(domain=['Presencial', 'Virtual'], range=['#7C3AED', '#64748B']), legend=alt.Legend(orient='bottom', title=None)),
                     tooltip=['Canal:N', alt.Tooltip('Visitas:Q', title='Visitas Totales'), alt.Tooltip('Porcentaje:Q', title='Porcentaje (%)', format='.1f')]
