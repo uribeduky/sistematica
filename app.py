@@ -381,43 +381,47 @@ if mode == "comercial":
             m5.metric("IEP Comercial", f"{row['IEP']*100:.1f}%")
             m6.metric("Total Cierres $MM", f"{format_cop_int(row['Total_Monto_COP_MM'])} MM")
 
-            # SECCIÓN DE GRÁFICOS INDIVIDUALES
-            st.markdown("#### 📊 Diagnóstico Visual de la Gestión Comercial")
+            # SECCIÓN DE GRÁFICOS INDIVIDUALES EN PORCENTAJE (100% STACKED)
+            st.markdown("#### 📊 Diagnóstico Visual de la Gestión Comercial (%)")
             cg1, cg2 = st.columns(2)
             
             common_height = 150
             
             with cg1:
-                st.markdown("##### ⚖️ 1. Mix Clientes (Nuevos vs. Existentes)")
-                df_tipo_data = pd.DataFrame({
-                    'Metric': ['Clientes'],
-                    'Nuevo (Captación)': [int(row['Visitas_Nuevos'])],
-                    'Existente (Mantenimiento)': [int(row['Visitas_Existentes'])]
-                })
-                df_tipo_melted = df_tipo_data.melt('Metric', var_name='Tipo', value_name='Visitas')
+                st.markdown("##### ⚖️ 1. Mix Clientes (% Nuevos vs. Existentes)")
+                tot_cli = int(row['Visitas_Nuevos']) + int(row['Visitas_Existentes'])
+                pct_nuevo = (int(row['Visitas_Nuevos']) / tot_cli * 100) if tot_cli > 0 else 0
+                pct_exist = (int(row['Visitas_Existentes']) / tot_cli * 100) if tot_cli > 0 else 0
+
+                df_tipo_data = pd.DataFrame([
+                    {'Metric': 'Clientes', 'Tipo': 'Nuevo (Captación)', 'Visitas': int(row['Visitas_Nuevos']), 'Porcentaje': pct_nuevo},
+                    {'Metric': 'Clientes', 'Tipo': 'Existente (Mantenimiento)', 'Visitas': int(row['Visitas_Existentes']), 'Porcentaje': pct_exist}
+                ])
                 
-                chart_tipo = alt.Chart(df_tipo_melted).mark_bar(size=24).encode(
-                    x=alt.X('Visitas:Q', title=None, stack='zero'),
+                chart_tipo = alt.Chart(df_tipo_data).mark_bar(size=24).encode(
+                    x=alt.X('Porcentaje:Q', scale=alt.Scale(domain=[0, 100]), title="Porcentaje (%)"),
                     y=alt.Y('Metric:N', title=None, axis=None),
                     color=alt.Color('Tipo:N', scale=alt.Scale(domain=['Nuevo (Captación)', 'Existente (Mantenimiento)'], range=['#2E7D32', '#0284C7']), legend=alt.Legend(orient='bottom', title=None)),
-                    tooltip=['Tipo', 'Visitas']
+                    tooltip=['Tipo:N', alt.Tooltip('Visitas:Q', title='Visitas Totales'), alt.Tooltip('Porcentaje:Q', title='Porcentaje (%)', format='.1f')]
                 ).properties(height=common_height)
                 st.altair_chart(chart_tipo, use_container_width=True)
 
             with cg2:
-                st.markdown("##### 📍 2. Mix de Canal (Presencial vs. Virtual)")
-                df_canal_data = pd.DataFrame({
-                    'Metric': ['Reuniones'],
-                    'Presencial': [int(row['Visitas_Presenciales'])],
-                    'Virtual': [int(row['Visitas_Virtuales'])]
-                })
-                df_canal_melted = df_canal_data.melt('Metric', var_name='Canal', value_name='Visitas')
+                st.markdown("##### 📍 2. Mix de Canal (% Presencial vs. Virtual)")
+                tot_canal = int(row['Visitas_Presenciales']) + int(row['Visitas_Virtuales'])
+                pct_presencial = (int(row['Visitas_Presenciales']) / tot_canal * 100) if tot_canal > 0 else 0
+                pct_virtual = (int(row['Visitas_Virtuales']) / tot_canal * 100) if tot_canal > 0 else 0
+
+                df_canal_data = pd.DataFrame([
+                    {'Metric': 'Reuniones', 'Canal': 'Presencial', 'Visitas': int(row['Visitas_Presenciales']), 'Porcentaje': pct_presencial},
+                    {'Metric': 'Reuniones', 'Canal': 'Virtual', 'Visitas': int(row['Visitas_Virtuales']), 'Porcentaje': pct_virtual}
+                ])
                 
-                chart_canal = alt.Chart(df_canal_melted).mark_bar(size=24).encode(
-                    x=alt.X('Visitas:Q', title=None, stack='zero'),
+                chart_canal = alt.Chart(df_canal_data).mark_bar(size=24).encode(
+                    x=alt.X('Porcentaje:Q', scale=alt.Scale(domain=[0, 100]), title="Porcentaje (%)"),
                     y=alt.Y('Metric:N', title=None, axis=None),
                     color=alt.Color('Canal:N', scale=alt.Scale(domain=['Presencial', 'Virtual'], range=['#7C3AED', '#64748B']), legend=alt.Legend(orient='bottom', title=None)),
-                    tooltip=['Canal', 'Visitas']
+                    tooltip=['Canal:N', alt.Tooltip('Visitas:Q', title='Visitas Totales'), alt.Tooltip('Porcentaje:Q', title='Porcentaje (%)', format='.1f')]
                 ).properties(height=common_height)
                 st.altair_chart(chart_canal, use_container_width=True)
 
