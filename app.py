@@ -538,27 +538,19 @@ elif mode == "lider":
     with tab1:
         if not records_df.empty:
             meses_globales = sorted(records_df["Mes_Año"].astype(str).unique(), reverse=True)
-            col_m, col_d, col_p, col_c, col_t = st.columns([1, 1, 1, 1, 1])
-            with col_m:
-                mes_global = st.selectbox("📅 Mes:", meses_globales)
-            with col_d:
-                dir_global_filter = st.selectbox("👤 Director:", ["Todos"] + LISTA_DIRECTORES)
-            with col_p:
-                prod_global_filter = st.selectbox("📦 Producto:", ["Todos"] + LISTA_PRODUCTOS)
-            with col_c:
-                cierre_global_filter = st.selectbox("🤝 Cierre:", ["Todos", "Sí", "No"])
-            with col_t:
-                tipo_global_filter = st.selectbox("👥 Tipo Cliente:", ["Todos", "Nuevo (Captación)", "Existente (Mantenimiento)"])
+            col_mes, col_dir_filter, col_prod_filter = st.columns([1, 1, 1])
+            with col_mes:
+                mes_global = st.selectbox("📅 Selecciona el Mes a Evaluar:", meses_globales)
+            with col_dir_filter:
+                dir_global_filter = st.selectbox("👤 Filtrar por Director:", ["Todos"] + LISTA_DIRECTORES)
+            with col_prod_filter:
+                prod_global_filter = st.selectbox("📦 Filtrar por Producto:", ["Todos"] + LISTA_PRODUCTOS)
             
             records_month = records_df[records_df["Mes_Año"] == mes_global]
             if dir_global_filter != "Todos":
                 records_month = records_month[records_month["Director"] == dir_global_filter]
             if prod_global_filter != "Todos":
                 records_month = records_month[records_month["Principal Producto"] == prod_global_filter]
-            if cierre_global_filter != "Todos":
-                records_month = records_month[records_month["Cierre"].astype(str).str.strip().str.lower() == cierre_global_filter.lower()]
-            if tipo_global_filter != "Todos":
-                records_month = records_month[records_month["Tipo Cliente"] == tipo_global_filter]
 
             global_summary = compute_metrics(records_month, st.session_state.config)
 
@@ -662,7 +654,7 @@ elif mode == "lider":
 
                 st.dataframe(display_df, use_container_width=True)
             else:
-                st.info("No hay registros que coincidan con los filtros seleccionados (Mes, Director, Producto, Cierre o Tipo Cliente).")
+                st.info("No hay registros que coincidan con los filtros seleccionados (Mes, Director o Producto).")
         else:
             st.info("No hay registros en la base de datos para mostrar acumulados.")
 
@@ -670,17 +662,25 @@ elif mode == "lider":
         st.subheader("🔎 Bitácora Detallada de Visitas Comercial del Equipo")
         if not records_df.empty:
             meses_bitacora = sorted(records_df["Mes_Año"].astype(str).unique(), reverse=True)
-            col_m1, col_m2 = st.columns([1, 1])
+            col_m1, col_m2, col_m3, col_m4 = st.columns([1, 1, 1, 1])
             with col_m1:
                 m_selected = st.selectbox("Filtrar por Mes:", ["Todos"] + meses_bitacora)
             with col_m2:
                 d_selected = st.selectbox("Filtrar por Director:", ["Todos"] + LISTA_DIRECTORES)
+            with col_m3:
+                c_selected = st.selectbox("Filtrar por Cierre:", ["Todos", "Sí", "No"])
+            with col_m4:
+                t_selected = st.selectbox("Filtrar por Tipo Cliente:", ["Todos", "Nuevo (Captación)", "Existente (Mantenimiento)"])
 
             df_bitacora = records_df.copy()
             if m_selected != "Todos":
                 df_bitacora = df_bitacora[df_bitacora["Mes_Año"] == m_selected]
             if d_selected != "Todos":
                 df_bitacora = df_bitacora[df_bitacora["Director"] == d_selected]
+            if c_selected != "Todos":
+                df_bitacora = df_bitacora[df_bitacora["Cierre"].astype(str).str.strip().str.lower() == c_selected.lower()]
+            if t_selected != "Todos":
+                df_bitacora = df_bitacora[df_bitacora["Tipo Cliente"] == t_selected]
 
             cols_show = ["Fecha", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Principal Producto", "Cierre", "Monto COP$MM"]
             df_bitacora_show = df_bitacora[[c for c in cols_show if c in df_bitacora.columns]].copy()
