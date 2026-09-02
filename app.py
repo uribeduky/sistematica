@@ -381,7 +381,7 @@ if mode == "comercial":
             m5.metric("IEP Comercial", f"{row['IEP']*100:.1f}%")
             m6.metric("Total Cierres $MM", f"{format_cop_int(row['Total_Monto_COP_MM'])} MM")
 
-            # SECCIÓN DE GRÁFICOS INDIVIDUALES (2 GRÁFICOS HOMOGÉNEOS DE ALTURA 150px)
+            # SECCIÓN DE GRÁFICOS INDIVIDUALES
             st.markdown("#### 📊 Diagnóstico Visual de la Gestión Comercial")
             cg1, cg2 = st.columns(2)
             
@@ -538,19 +538,27 @@ elif mode == "lider":
     with tab1:
         if not records_df.empty:
             meses_globales = sorted(records_df["Mes_Año"].astype(str).unique(), reverse=True)
-            col_mes, col_dir_filter, col_prod_filter = st.columns([1, 1, 1])
-            with col_mes:
-                mes_global = st.selectbox("📅 Selecciona el Mes a Evaluar:", meses_globales)
-            with col_dir_filter:
-                dir_global_filter = st.selectbox("👤 Filtrar por Director:", ["Todos"] + LISTA_DIRECTORES)
-            with col_prod_filter:
-                prod_global_filter = st.selectbox("📦 Filtrar por Producto:", ["Todos"] + LISTA_PRODUCTOS)
+            col_m, col_d, col_p, col_c, col_t = st.columns([1, 1, 1, 1, 1])
+            with col_m:
+                mes_global = st.selectbox("📅 Mes:", meses_globales)
+            with col_d:
+                dir_global_filter = st.selectbox("👤 Director:", ["Todos"] + LISTA_DIRECTORES)
+            with col_p:
+                prod_global_filter = st.selectbox("📦 Producto:", ["Todos"] + LISTA_PRODUCTOS)
+            with col_c:
+                cierre_global_filter = st.selectbox("🤝 Cierre:", ["Todos", "Sí", "No"])
+            with col_t:
+                tipo_global_filter = st.selectbox("👥 Tipo Cliente:", ["Todos", "Nuevo (Captación)", "Existente (Mantenimiento)"])
             
             records_month = records_df[records_df["Mes_Año"] == mes_global]
             if dir_global_filter != "Todos":
                 records_month = records_month[records_month["Director"] == dir_global_filter]
             if prod_global_filter != "Todos":
                 records_month = records_month[records_month["Principal Producto"] == prod_global_filter]
+            if cierre_global_filter != "Todos":
+                records_month = records_month[records_month["Cierre"].astype(str).str.strip().str.lower() == cierre_global_filter.lower()]
+            if tipo_global_filter != "Todos":
+                records_month = records_month[records_month["Tipo Cliente"] == tipo_global_filter]
 
             global_summary = compute_metrics(records_month, st.session_state.config)
 
@@ -654,7 +662,7 @@ elif mode == "lider":
 
                 st.dataframe(display_df, use_container_width=True)
             else:
-                st.info("No hay registros que coincidan con los filtros seleccionados (Mes, Director o Producto).")
+                st.info("No hay registros que coincidan con los filtros seleccionados (Mes, Director, Producto, Cierre o Tipo Cliente).")
         else:
             st.info("No hay registros en la base de datos para mostrar acumulados.")
 
