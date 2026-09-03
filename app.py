@@ -284,14 +284,14 @@ def create_closures_by_product_chart(df_input):
     if df_cierres.empty:
         return alt.Chart(pd.DataFrame({'msg': ['Sin cierres registrados']})).mark_text().encode(text='msg')
     
-    df_group = df_cierres.groupby(["Mes_Año", "Principal Producto"]).size().reset_index(name="Cierres")
+    df_group = df_cierres.groupby(["Principal Producto", "Mes_Año"]).size().reset_index(name="Cierres")
     
-    chart = alt.Chart(df_group).mark_bar().encode(
-        x=alt.X('Mes_Año:N', title='Mes'),
-        y=alt.Y('Cierres:Q', title='Cierres Efectivos'),
-        color=alt.Color('Principal Producto:N', legend=alt.Legend(title="Producto", orient="bottom")),
-        tooltip=['Mes_Año:N', 'Principal Producto:N', alt.Tooltip('Cierres:Q', title='Total Cierres')]
-    ).properties(height=280)
+    chart = alt.Chart(df_group).mark_bar(size=20, cornerRadiusEnd=3).encode(
+        y=alt.Y('Principal Producto:N', title=None, sort='-x'),
+        x=alt.X('Cierres:Q', title='Número de Cierres Efectivos', axis=alt.Axis(format='d', tickMinStep=1)),
+        color=alt.Color('Mes_Año:N', legend=alt.Legend(title="Mes", orient="bottom")),
+        tooltip=['Principal Producto:N', 'Mes_Año:N', alt.Tooltip('Cierres:Q', title='Cierres Efectivos')]
+    ).properties(height=340)
     
     return chart
 
@@ -446,10 +446,12 @@ if mode == "comercial":
                 ).properties(height=common_height)
                 st.altair_chart(chart_canal, use_container_width=True)
 
-            # GRÁFICO NUEVO: CIERRES POR PRODUCTO Y MES INDIVIDUAL
-            st.markdown("##### 🤝 Cierres Efectivos por Producto por Mes")
-            chart_closures_ind = create_closures_by_product_chart(user_records_all)
-            st.altair_chart(chart_closures_ind, use_container_width=True)
+            # GRÁFICO OPTIMIZADO: CIERRES POR PRODUCTO (MÁS ALTO, MENOS ANCHO)
+            st.markdown("##### 🤝 Cierres Efectivos por Producto")
+            col_chart_c1, col_chart_c2 = st.columns([2, 1])
+            with col_chart_c1:
+                chart_closures_ind = create_closures_by_product_chart(user_records_all)
+                st.altair_chart(chart_closures_ind, use_container_width=True)
 
             # SECCIÓN DATA ANALYTICS INDIVIDUAL + RECOMENDACIÓN COMERCIAL
             with st.expander("💡 Data Analytics & Recomendación", expanded=True):
@@ -671,15 +673,17 @@ elif mode == "lider":
                     line_chart_obj = create_line_chart(records_df, dir_global_filter, prod_global_filter)
                     st.altair_chart(line_chart_obj, use_container_width=True)
 
-                st.markdown("##### 🤝 Número de Cierres por Producto por Mes (Equipo)")
+                st.markdown("##### 🤝 Número de Cierres Efectivos por Producto (Equipo)")
                 df_closures_filtered = records_df.copy()
                 if dir_global_filter != "Todos":
                     df_closures_filtered = df_closures_filtered[df_closures_filtered["Director"] == dir_global_filter]
                 if prod_global_filter != "Todos":
                     df_closures_filtered = df_closures_filtered[df_closures_filtered["Principal Producto"] == prod_global_filter]
 
-                chart_closures_global = create_closures_by_product_chart(df_closures_filtered)
-                st.altair_chart(chart_closures_global, use_container_width=True)
+                col_gc1, col_gc2 = st.columns([2, 1])
+                with col_gc1:
+                    chart_closures_global = create_closures_by_product_chart(df_closures_filtered)
+                    st.altair_chart(chart_closures_global, use_container_width=True)
 
                 st.divider()
                 st.subheader(f"📋 Rendimiento del Equipo - Período {mes_global}")
