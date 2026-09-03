@@ -275,6 +275,26 @@ def create_line_chart(df_all, dir_filter, prod_filter):
     ).properties(height=280)
     return chart
 
+def create_closures_by_product_chart(df_input):
+    if df_input.empty:
+        return alt.Chart(pd.DataFrame({'msg': ['Sin cierres registrados']})).mark_text().encode(text='msg')
+    
+    df_cierres = df_input[df_input["Cierre"].astype(str).str.strip().str.lower().isin(["sí", "si"])].copy()
+    
+    if df_cierres.empty:
+        return alt.Chart(pd.DataFrame({'msg': ['Sin cierres registrados']})).mark_text().encode(text='msg')
+    
+    df_group = df_cierres.groupby(["Mes_Año", "Principal Producto"]).size().reset_index(name="Cierres")
+    
+    chart = alt.Chart(df_group).mark_bar().encode(
+        x=alt.X('Mes_Año:N', title='Mes'),
+        y=alt.Y('Cierres:Q', title='Cierres Efectivos'),
+        color=alt.Color('Principal Producto:N', legend=alt.Legend(title="Producto", orient="bottom")),
+        tooltip=['Mes_Año:N', 'Principal Producto:N', alt.Tooltip('Cierres:Q', title='Total Cierres')]
+    ).properties(height=280)
+    
+    return chart
+
 query_params = st.query_params
 mode = query_params.get("modo", "comercial")
 
@@ -425,6 +445,11 @@ if mode == "comercial":
                     tooltip=['Canal:N', alt.Tooltip('Visitas:Q', title='Visitas Totales'), alt.Tooltip('Porcentaje:Q', title='Porcentaje (%)', format='.1f')]
                 ).properties(height=common_height)
                 st.altair_chart(chart_canal, use_container_width=True)
+
+            # GRÁFICO NUEVO: CIERRES POR PRODUCTO Y MES INDIVIDUAL
+            st.markdown("##### 🤝 Cierres Efectivos por Producto por Mes")
+            chart_closures_ind = create_closures_by_product_chart(user_records_all)
+            st.altair_chart(chart_closures_ind, use_container_width=True)
 
             # SECCIÓN DATA ANALYTICS INDIVIDUAL + RECOMENDACIÓN COMERCIAL
             with st.expander("💡 Data Analytics & Recomendación", expanded=True):
@@ -632,8 +657,8 @@ elif mode == "lider":
 
                 st.divider()
 
-                # SECCIÓN DE GRÁFICOS: PIE Y LÍNEA
-                st.subheader("📊 Distribución por Producto y Evolución Histórica")
+                # SECCIÓN DE GRÁFICOS: PIE, LÍNEA Y CIERRES POR PRODUCTO
+                st.subheader("📊 Distribución por Producto, Evolución Histórica y Cierres")
                 
                 col_p1, col_p2 = st.columns(2)
                 with col_p1:
@@ -645,6 +670,16 @@ elif mode == "lider":
                     st.markdown("##### 📈 Evolución Histórica por Mes")
                     line_chart_obj = create_line_chart(records_df, dir_global_filter, prod_global_filter)
                     st.altair_chart(line_chart_obj, use_container_width=True)
+
+                st.markdown("##### 🤝 Número de Cierres por Producto por Mes (Equipo)")
+                df_closures_filtered = records_df.copy()
+                if dir_global_filter != "Todos":
+                    df_closures_filtered = df_closures_filtered[df_closures_filtered["Director"] == dir_global_filter]
+                if prod_global_filter != "Todos":
+                    df_closures_filtered = df_closures_filtered[df_closures_filtered["Principal Producto"] == prod_global_filter]
+
+                chart_closures_global = create_closures_by_product_chart(df_closures_filtered)
+                st.altair_chart(chart_closures_global, use_container_width=True)
 
                 st.divider()
                 st.subheader(f"📋 Rendimiento del Equipo - Período {mes_global}")
