@@ -275,37 +275,6 @@ def create_line_chart(df_all, dir_filter, prod_filter):
     ).properties(height=280)
     return chart
 
-def create_closures_by_product_chart(df_input, selected_months=None):
-    if df_input.empty:
-        return alt.Chart(pd.DataFrame({'msg': ['Sin cierres registrados']})).mark_text().encode(text='msg')
-    
-    df_cierres = df_input[df_input["Cierre"].astype(str).str.strip().str.lower().isin(["sí", "si"])].copy()
-    
-    if selected_months and len(selected_months) > 0:
-        df_cierres = df_cierres[df_cierres["Mes_Año"].isin(selected_months)]
-    
-    if df_cierres.empty:
-        return alt.Chart(pd.DataFrame({'msg': ['Sin cierres para los meses seleccionados']})).mark_text().encode(text='msg')
-    
-    df_group = df_cierres.groupby(["Principal Producto", "Mes_Año"]).size().reset_index(name="Cierres")
-    
-    if len(df_group["Mes_Año"].unique()) > 1:
-        chart = alt.Chart(df_group).mark_bar(size=20, cornerRadiusEnd=3).encode(
-            y=alt.Y('Principal Producto:N', title=None, sort='-x'),
-            x=alt.X('Cierres:Q', title='Cierres Efectivos', axis=alt.Axis(format='d', tickMinStep=1)),
-            color=alt.Color('Mes_Año:N', legend=alt.Legend(title="Mes", orient="bottom")),
-            row=alt.Row('Mes_Año:N', title='Mes Evaluado'),
-            tooltip=['Principal Producto:N', 'Mes_Año:N', alt.Tooltip('Cierres:Q', title='Cierres')]
-        ).properties(height=180)
-    else:
-        chart = alt.Chart(df_group).mark_bar(size=22, cornerRadiusEnd=3, color='#0284C7').encode(
-            y=alt.Y('Principal Producto:N', title=None, sort='-x'),
-            x=alt.X('Cierres:Q', title='Cierres Efectivos', axis=alt.Axis(format='d', tickMinStep=1)),
-            tooltip=['Principal Producto:N', 'Mes_Año:N', alt.Tooltip('Cierres:Q', title='Cierres')]
-        ).properties(height=260)
-    
-    return chart
-
 query_params = st.query_params
 mode = query_params.get("modo", "comercial")
 
@@ -456,16 +425,6 @@ if mode == "comercial":
                     tooltip=['Canal:N', alt.Tooltip('Visitas:Q', title='Visitas Totales'), alt.Tooltip('Porcentaje:Q', title='Porcentaje (%)', format='.1f')]
                 ).properties(height=common_height)
                 st.altair_chart(chart_canal, use_container_width=True)
-
-            # GRÁFICO CON SELECCIÓN DE MESES INDIVIDUALES
-            st.markdown("##### 🤝 Cierres Efectivos por Producto")
-            col_chart_c1, col_chart_c2 = st.columns([1.5, 1])
-            with col_chart_c1:
-                user_months_list = sorted(user_records_all["Mes_Año"].astype(str).unique(), reverse=True)
-                sel_user_months = st.multiselect("📅 Selecciona el mes o meses a analizar:", user_months_list, default=[selected_mes], key="msel_user")
-                
-                chart_closures_ind = create_closures_by_product_chart(user_records_all, sel_user_months)
-                st.altair_chart(chart_closures_ind, use_container_width=True)
 
             # SECCIÓN DATA ANALYTICS INDIVIDUAL + RECOMENDACIÓN COMERCIAL
             with st.expander("💡 Data Analytics & Recomendación", expanded=True):
@@ -673,8 +632,8 @@ elif mode == "lider":
 
                 st.divider()
 
-                # SECCIÓN DE GRÁFICOS: PIE, LÍNEA Y CIERRES POR PRODUCTO
-                st.subheader("📊 Distribución por Producto, Evolución Histórica y Cierres")
+                # SECCIÓN DE GRÁFICOS: PIE Y LÍNEA
+                st.subheader("📊 Distribución por Producto y Evolución Histórica")
                 
                 col_p1, col_p2 = st.columns(2)
                 with col_p1:
@@ -686,21 +645,6 @@ elif mode == "lider":
                     st.markdown("##### 📈 Evolución Histórica por Mes")
                     line_chart_obj = create_line_chart(records_df, dir_global_filter, prod_global_filter)
                     st.altair_chart(line_chart_obj, use_container_width=True)
-
-                st.markdown("##### 🤝 Número de Cierres Efectivos por Producto (Equipo)")
-                df_closures_filtered = records_df.copy()
-                if dir_global_filter != "Todos":
-                    df_closures_filtered = df_closures_filtered[df_closures_filtered["Director"] == dir_global_filter]
-                if prod_global_filter != "Todos":
-                    df_closures_filtered = df_closures_filtered[df_closures_filtered["Principal Producto"] == prod_global_filter]
-
-                col_gc1, col_gc2 = st.columns([1.5, 1])
-                with col_gc1:
-                    all_months_list = sorted(records_df["Mes_Año"].astype(str).unique(), reverse=True)
-                    sel_global_months = st.multiselect("📅 Selecciona el mes o meses a analizar en el equipo:", all_months_list, default=[mes_global], key="msel_global")
-                    
-                    chart_closures_global = create_closures_by_product_chart(df_closures_filtered, sel_global_months)
-                    st.altair_chart(chart_closures_global, use_container_width=True)
 
                 st.divider()
                 st.subheader(f"📋 Rendimiento del Equipo - Período {mes_global}")
