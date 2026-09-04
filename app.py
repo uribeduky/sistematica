@@ -63,6 +63,9 @@ LISTA_PRODUCTOS = [
     "Fideicomiso de Inversión"
 ]
 
+# Tipos de Cierre
+LISTA_TIPOS_CIERRE = ["Nuevo", "Cross-sell", "Up-sell"]
+
 DEFAULT_CONFIG = {
     "p_presencial": 1.0,
     "p_virtual": 0.6,
@@ -80,7 +83,7 @@ WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxe5DtYRWvWtFCNvnJTXdtU45U
 
 if "local_records" not in st.session_state:
     st.session_state.local_records = pd.DataFrame(columns=[
-        "ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre", "Principal Producto", "Monto COP$MM"
+        "ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre", "Tipo Cierre", "Principal Producto", "Monto COP$MM"
     ])
 
 if "deleted_ids" not in st.session_state:
@@ -106,7 +109,7 @@ def format_cop_int(val):
         return "$0"
 
 def load_data():
-    df_sheet = pd.DataFrame(columns=["ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre", "Principal Producto", "Monto COP$MM"])
+    df_sheet = pd.DataFrame(columns=["ID", "Fecha", "Mes_Año", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Cierre", "Tipo Cierre", "Principal Producto", "Monto COP$MM"])
     try:
         timestamp_url = f"{SHEET_CSV_URL}&t={int(datetime.datetime.now().timestamp())}"
         df_sheet = pd.read_csv(timestamp_url)
@@ -117,6 +120,7 @@ def load_data():
             col_map = {
                 "Nombre_Cliente": "Nombre Cliente",
                 "Tipo_Cliente": "Tipo Cliente",
+                "Tipo_Cierre": "Tipo Cierre",
                 "Principal_Producto": "Principal Producto",
                 "Monto_COP_MM": "Monto COP$MM",
                 "Monto": "Monto COP$MM",
@@ -124,6 +128,8 @@ def load_data():
             }
             df_sheet.rename(columns=col_map, inplace=True)
 
+            if "Tipo Cierre" not in df_sheet.columns:
+                df_sheet["Tipo Cierre"] = ""
             if "Principal Producto" not in df_sheet.columns:
                 df_sheet["Principal Producto"] = ""
             if "Monto COP$MM" not in df_sheet.columns:
@@ -236,6 +242,34 @@ def create_pie_chart(data, col_name):
 
     return chart
 
+def create_closure_type_pie_chart(data):
+    if data.empty or "Tipo Cierre" not in data.columns:
+        return alt.Chart(pd.DataFrame({'msg': ['Sin datos de cierres']})).mark_text().encode(text='msg')
+    
+    df_cierres = data[data["Cierre"].astype(str).str.strip().str.lower().isin(["sí", "si"])].copy() if "Cierre" in data.columns else data.copy()
+    
+    if df_cierres.empty:
+        return alt.Chart(pd.DataFrame({'msg': ['Sin cierres registrados']})).mark_text().encode(text='msg')
+    
+    df_pie = df_cierres["Tipo Cierre"].value_counts().reset_index()
+    df_pie.columns = ["Tipo Cierre", "Count"]
+    df_pie = df_pie[df_pie["Tipo Cierre"].astype(str).str.strip() != ""]
+    
+    if df_pie.empty:
+        return alt.Chart(pd.DataFrame({'msg': ['Sin cierres clasificados']})).mark_text().encode(text='msg')
+    
+    total_count = df_pie["Count"].sum()
+    df_pie["Percentage"] = (df_pie["Count"] / total_count * 100).round(1)
+    df_pie["Leyenda"] = df_pie.apply(lambda r: f"{r['Tipo Cierre']} ({r['Percentage']:.1f}%)", axis=1)
+
+    chart = alt.Chart(df_pie).mark_arc(outerRadius=98, innerRadius=45).encode(
+        theta=alt.Theta("Count:Q", stack=True),
+        color=alt.Color("Leyenda:N", scale=alt.Scale(range=['#2E7D32', '#7C3AED', '#0284C7']), legend=alt.Legend(title="Tipo de Cierre", orient="right")),
+        tooltip=["Tipo Cierre", "Count", alt.Tooltip("Percentage:Q", format=".1f", title="Porcentaje (%)")]
+    ).properties(height=280)
+
+    return chart
+
 def create_line_chart(df_all, dir_filter, prod_filter):
     df_t = df_all.copy()
     if dir_filter != "Todos":
@@ -335,8 +369,14 @@ if mode == "comercial":
         cierre = st.selectbox("¿Ocurrió Cierre?", ["No", "Sí"])
 
     monto_cierre = 0
+    tipo_cierre_val = ""
+    
     if cierre == "Sí":
-        monto_cierre = st.number_input("💵 Monto Cierre (COP $ MM):", min_value=0, value=0, step=1, help="Ingresa el monto captado o cerrado en millones de pesos colombianos (entero).")
+        col_cierre_a, col_cierre_b = st.columns(2)
+        with col_cierre_a:
+            tipo_cierre_val = st.selectbox("🎯 Tipo de Cierre Comercial:", LISTA_TIPOS_CIERRE, help="Clasifica el cierre en Nuevo (Cliente nuevo), Cross-sell (Nuevo producto) o Up-sell (Dinero nuevo incremental).")
+        with col_cierre_b:
+            monto_cierre = st.number_input("💵 Monto Cierre (COP $ MM):", min_value=0, value=0, step=1, help="Ingresa el monto captado o cerrado en millones de pesos colombianos (entero).")
 
     if st.button("💾 Guardar Visita"):
         if not nombre_cliente.strip():
@@ -346,6 +386,7 @@ if mode == "comercial":
             record_id = str(int(datetime.datetime.now().timestamp() * 1000))
             
             final_monto = int(monto_cierre) if cierre == "Sí" else 0
+            final_tipo_cierre = tipo_cierre_val if cierre == "Sí" else ""
             
             new_row = pd.DataFrame([{
                 "ID": record_id,
@@ -356,6 +397,7 @@ if mode == "comercial":
                 "Tipo Cliente": tipo_cliente,
                 "Canal": canal,
                 "Cierre": cierre,
+                "Tipo Cierre": final_tipo_cierre,
                 "Principal Producto": principal_producto,
                 "Monto COP$MM": final_monto
             }])
@@ -373,6 +415,8 @@ if mode == "comercial":
                 "Tipo Cliente": tipo_cliente,
                 "Canal": canal,
                 "Cierre": cierre,
+                "Tipo_Cierre": final_tipo_cierre,
+                "Tipo Cierre": final_tipo_cierre,
                 "Principal_Producto": principal_producto,
                 "Principal Producto": principal_producto,
                 "Monto_COP_MM": final_monto,
@@ -452,10 +496,19 @@ if mode == "comercial":
                 ).properties(height=common_height)
                 st.altair_chart(chart_canal, use_container_width=True)
 
-            # GRÁFICO TOTAL SUMA DE VISITAS POR DÍA DE LA SEMANA (INDIVIDUAL)
-            st.markdown("##### 📅 Total de Visitas por Día de la Semana")
-            chart_weekday_ind = create_weekday_sum_chart(user_records_month)
-            st.altair_chart(chart_weekday_ind, use_container_width=True)
+            # GRÁFICOS COMPLEMENTARIOS: DÍA DE LA SEMANA Y PIE DE TIPO DE CIERRE
+            st.markdown("#### 🎯 Dinámica de Visitas y Composición de Cierres")
+            col_ind_d1, col_ind_d2 = st.columns(2)
+            
+            with col_ind_d1:
+                st.markdown("##### 📅 Total de Visitas por Día de la Semana")
+                chart_weekday_ind = create_weekday_sum_chart(user_records_month)
+                st.altair_chart(chart_weekday_ind, use_container_width=True)
+
+            with col_ind_d2:
+                st.markdown("##### 🤝 Composición de Cierres (% Nuevo, Cross-sell, Up-sell)")
+                chart_closure_type_ind = create_closure_type_pie_chart(user_records_month)
+                st.altair_chart(chart_closure_type_ind, use_container_width=True)
 
             # SECCIÓN DATA ANALYTICS INDIVIDUAL + RECOMENDACIÓN COMERCIAL
             with st.expander("💡 Data Analytics & Recomendación", expanded=True):
@@ -490,8 +543,11 @@ if mode == "comercial":
         st.divider()
         st.subheader("📋 Mis Visitas Registradas")
 
-        df_display = user_records_month[["ID", "Fecha", "Nombre Cliente", "Tipo Cliente", "Canal", "Principal Producto", "Cierre", "Monto COP$MM"]].copy()
-        df_display_show = df_display[["Fecha", "Nombre Cliente", "Tipo Cliente", "Canal", "Principal Producto", "Cierre", "Monto COP$MM"]].copy()
+        cols_user_view = ["ID", "Fecha", "Nombre Cliente", "Tipo Cliente", "Canal", "Principal Producto", "Cierre", "Tipo Cierre", "Monto COP$MM"]
+        df_display = user_records_month[[c for c in cols_user_view if c in user_records_month.columns]].copy()
+        
+        cols_show_u = ["Fecha", "Nombre Cliente", "Tipo Cliente", "Canal", "Principal Producto", "Cierre", "Tipo Cierre", "Monto COP$MM"]
+        df_display_show = df_display[[c for c in cols_show_u if c in df_display.columns]].copy()
         df_display_show["Monto COP$MM"] = df_display_show["Monto COP$MM"].apply(format_cop_int)
         
         st.dataframe(df_display_show, use_container_width=True)
@@ -501,7 +557,7 @@ if mode == "comercial":
         with col_edit_exp:
             with st.expander("✏️ Actualizar una Visita Registrada"):
                 dict_edit = {
-                    f"{r['Fecha']} - {r['Nombre Cliente']} (Producto: {r['Principal Producto'] or 'Sin definir'})": r
+                    f"{r['Fecha']} - {r['Nombre Cliente']} (Producto: {r.get('Principal Producto', '') or 'Sin definir'})": r
                     for _, r in df_display.iterrows()
                 }
                 if dict_edit:
@@ -513,6 +569,14 @@ if mode == "comercial":
 
                     nuevo_prod = st.selectbox("Nuevo Principal Producto:", LISTA_PRODUCTOS, index=idx_prod, key="edit_prod")
                     nuevo_cierre = st.selectbox("¿Ocurrió Cierre?", ["No", "Sí"], index=1 if str(record_to_edit['Cierre']).strip().lower() in ['sí', 'si'] else 0, key="edit_cierre")
+                    
+                    curr_tc = str(record_to_edit.get('Tipo Cierre', ''))
+                    idx_tc = LISTA_TIPOS_CIERRE.index(curr_tc) if curr_tc in LISTA_TIPOS_CIERRE else 0
+                    
+                    nuevo_tipo_cierre = ""
+                    if nuevo_cierre == "Sí":
+                        nuevo_tipo_cierre = st.selectbox("Nuevo Tipo de Cierre Comercial:", LISTA_TIPOS_CIERRE, index=idx_tc, key="edit_tc")
+                    
                     nuevo_monto = st.number_input("Monto COP $MM:", min_value=0, value=int(record_to_edit.get('Monto COP$MM', 0)), step=1, key="edit_monto")
                     
                     if st.button("🔄 Guardar Cambios en la Visita", key="btn_save_edit"):
@@ -524,6 +588,8 @@ if mode == "comercial":
                             "Principal_Producto": nuevo_prod,
                             "Principal Producto": nuevo_prod,
                             "Cierre": nuevo_cierre,
+                            "Tipo_Cierre": nuevo_tipo_cierre,
+                            "Tipo Cierre": nuevo_tipo_cierre,
                             "Monto_COP_MM": final_edit_monto,
                             "Monto COP$MM": final_edit_monto,
                             "Monto": final_edit_monto
@@ -534,6 +600,7 @@ if mode == "comercial":
                         if mask.any():
                             st.session_state.local_records.loc[mask, "Principal Producto"] = nuevo_prod
                             st.session_state.local_records.loc[mask, "Cierre"] = nuevo_cierre
+                            st.session_state.local_records.loc[mask, "Tipo Cierre"] = nuevo_tipo_cierre
                             st.session_state.local_records.loc[mask, "Monto COP$MM"] = final_edit_monto
 
                         st.success("¡Visita actualizada correctamente!")
@@ -663,8 +730,8 @@ elif mode == "lider":
 
                 st.divider()
 
-                # SECCIÓN DE GRÁFICOS: PIE, LÍNEA Y DÍA DE LA SEMANA
-                st.subheader("📊 Distribución por Producto, Evolución Histórica y Actividad Diaria")
+                # SECCIÓN DE GRÁFICOS: PIE PRODUCTO, PIE TIPO CIERRE, LÍNEA Y DÍA DE LA SEMANA
+                st.subheader("📊 Distribución por Producto, Tipo de Cierre y Actividad Diaria")
                 
                 col_p1, col_p2 = st.columns(2)
                 with col_p1:
@@ -673,13 +740,20 @@ elif mode == "lider":
                     st.altair_chart(pie_chart_obj, use_container_width=True)
                     
                 with col_p2:
+                    st.markdown("##### 🤝 Composición de Cierres (% Nuevo, Cross-sell, Up-sell)")
+                    pie_type_obj = create_closure_type_pie_chart(records_month)
+                    st.altair_chart(pie_type_obj, use_container_width=True)
+
+                col_p3, col_p4 = st.columns(2)
+                with col_p3:
                     st.markdown("##### 📈 Evolución Histórica por Mes")
                     line_chart_obj = create_line_chart(records_df, dir_global_filter, prod_global_filter)
                     st.altair_chart(line_chart_obj, use_container_width=True)
 
-                st.markdown("##### 📅 Total de Visitas por Día de la Semana (Equipo)")
-                chart_weekday_global = create_weekday_sum_chart(records_month)
-                st.altair_chart(chart_weekday_global, use_container_width=True)
+                with col_p4:
+                    st.markdown("##### 📅 Total de Visitas por Día de la Semana (Equipo)")
+                    chart_weekday_global = create_weekday_sum_chart(records_month)
+                    st.altair_chart(chart_weekday_global, use_container_width=True)
 
                 st.divider()
                 st.subheader(f"📋 Rendimiento del Equipo - Período {mes_global}")
@@ -730,7 +804,7 @@ elif mode == "lider":
             if t_selected != "Todos":
                 df_bitacora = df_bitacora[df_bitacora["Tipo Cliente"] == t_selected]
 
-            cols_show = ["Fecha", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Principal Producto", "Cierre", "Monto COP$MM"]
+            cols_show = ["Fecha", "Director", "Nombre Cliente", "Tipo Cliente", "Canal", "Principal Producto", "Cierre", "Tipo Cierre", "Monto COP$MM"]
             df_bitacora_show = df_bitacora[[c for c in cols_show if c in df_bitacora.columns]].copy()
             if "Monto COP$MM" in df_bitacora_show.columns:
                 df_bitacora_show["Monto COP$MM"] = df_bitacora_show["Monto COP$MM"].apply(format_cop_int)
