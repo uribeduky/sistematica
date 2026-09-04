@@ -275,6 +275,32 @@ def create_line_chart(df_all, dir_filter, prod_filter):
     ).properties(height=280)
     return chart
 
+def create_weekday_sum_chart(df_input):
+    if df_input.empty or "Fecha" not in df_input.columns:
+        return alt.Chart(pd.DataFrame({'msg': ['Sin datos']})).mark_text().encode(text='msg')
+    
+    df_c = df_input.copy()
+    df_c["Fecha_dt"] = pd.to_datetime(df_c["Fecha"], errors='coerce')
+    df_c = df_c.dropna(subset=["Fecha_dt"])
+    
+    if df_c.empty:
+        return alt.Chart(pd.DataFrame({'msg': ['Sin datos de fechas válidas']})).mark_text().encode(text='msg')
+        
+    days_map = {0: '1. Lunes', 1: '2. Martes', 2: '3. Miércoles', 3: '4. Jueves', 4: '5. Viernes', 5: '6. Sábado', 6: '7. Domingo'}
+    df_c["Dia_Semana"] = df_c["Fecha_dt"].dt.dayofweek.map(days_map)
+    
+    sum_per_day = df_c.groupby("Dia_Semana").size().reset_index(name="Total_Visitas")
+    
+    order_days = ['1. Lunes', '2. Martes', '3. Miércoles', '4. Jueves', '5. Viernes', '6. Sábado', '7. Domingo']
+    
+    chart = alt.Chart(sum_per_day).mark_bar(size=20, cornerRadiusEnd=3, color='#1F497D').encode(
+        y=alt.Y('Dia_Semana:N', title=None, sort=order_days, axis=alt.Axis(labelExpr="substring(datum.label, 3)")),
+        x=alt.X('Total_Visitas:Q', title='Total Visitas Realizadas', axis=alt.Axis(format='d', tickMinStep=1)),
+        tooltip=[alt.Tooltip('Dia_Semana:N', title='Día'), alt.Tooltip('Total_Visitas:Q', title='Total Visitas')]
+    ).properties(height=240)
+    
+    return chart
+
 query_params = st.query_params
 mode = query_params.get("modo", "comercial")
 
@@ -425,6 +451,11 @@ if mode == "comercial":
                     tooltip=['Canal:N', alt.Tooltip('Visitas:Q', title='Visitas Totales'), alt.Tooltip('Porcentaje:Q', title='Porcentaje (%)', format='.1f')]
                 ).properties(height=common_height)
                 st.altair_chart(chart_canal, use_container_width=True)
+
+            # GRÁFICO TOTAL SUMA DE VISITAS POR DÍA DE LA SEMANA (INDIVIDUAL)
+            st.markdown("##### 📅 Total de Visitas por Día de la Semana")
+            chart_weekday_ind = create_weekday_sum_chart(user_records_month)
+            st.altair_chart(chart_weekday_ind, use_container_width=True)
 
             # SECCIÓN DATA ANALYTICS INDIVIDUAL + RECOMENDACIÓN COMERCIAL
             with st.expander("💡 Data Analytics & Recomendación", expanded=True):
@@ -632,8 +663,8 @@ elif mode == "lider":
 
                 st.divider()
 
-                # SECCIÓN DE GRÁFICOS: PIE Y LÍNEA
-                st.subheader("📊 Distribución por Producto y Evolución Histórica")
+                # SECCIÓN DE GRÁFICOS: PIE, LÍNEA Y DÍA DE LA SEMANA
+                st.subheader("📊 Distribución por Producto, Evolución Histórica y Actividad Diaria")
                 
                 col_p1, col_p2 = st.columns(2)
                 with col_p1:
@@ -645,6 +676,10 @@ elif mode == "lider":
                     st.markdown("##### 📈 Evolución Histórica por Mes")
                     line_chart_obj = create_line_chart(records_df, dir_global_filter, prod_global_filter)
                     st.altair_chart(line_chart_obj, use_container_width=True)
+
+                st.markdown("##### 📅 Total de Visitas por Día de la Semana (Equipo)")
+                chart_weekday_global = create_weekday_sum_chart(records_month)
+                st.altair_chart(chart_weekday_global, use_container_width=True)
 
                 st.divider()
                 st.subheader(f"📋 Rendimiento del Equipo - Período {mes_global}")
