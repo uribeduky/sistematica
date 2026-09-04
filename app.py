@@ -575,12 +575,13 @@ if mode == "comercial":
                     
                     nuevo_tipo_cierre = ""
                     if nuevo_cierre == "Sí":
-                        nuevo_tipo_cierre = st.selectbox("Nuevo Tipo de Cierre Comercial:", LISTA_TIPOS_CIERRE, index=idx_tc, key="edit_tc")
+                        nuevo_tipo_cierre = st.selectbox("🎯 Tipo de Cierre Comercial:", LISTA_TIPOS_CIERRE, index=idx_tc, key="edit_tc", help="Selecciona si el cierre fue por cliente Nuevo, Cross-sell o Up-sell.")
                     
-                    nuevo_monto = st.number_input("Monto COP $MM:", min_value=0, value=int(record_to_edit.get('Monto COP$MM', 0)), step=1, key="edit_monto")
+                    nuevo_monto = st.number_input("💵 Monto COP $MM:", min_value=0, value=int(record_to_edit.get('Monto COP$MM', 0)), step=1, key="edit_monto")
                     
                     if st.button("🔄 Guardar Cambios en la Visita", key="btn_save_edit"):
                         final_edit_monto = int(nuevo_monto) if nuevo_cierre == "Sí" else 0
+                        final_edit_tc = nuevo_tipo_cierre if nuevo_cierre == "Sí" else ""
                         
                         edit_payload = {
                             "action": "update",
@@ -588,8 +589,8 @@ if mode == "comercial":
                             "Principal_Producto": nuevo_prod,
                             "Principal Producto": nuevo_prod,
                             "Cierre": nuevo_cierre,
-                            "Tipo_Cierre": nuevo_tipo_cierre,
-                            "Tipo Cierre": nuevo_tipo_cierre,
+                            "Tipo_Cierre": final_edit_tc,
+                            "Tipo Cierre": final_edit_tc,
                             "Monto_COP_MM": final_edit_monto,
                             "Monto COP$MM": final_edit_monto,
                             "Monto": final_edit_monto
@@ -600,7 +601,7 @@ if mode == "comercial":
                         if mask.any():
                             st.session_state.local_records.loc[mask, "Principal Producto"] = nuevo_prod
                             st.session_state.local_records.loc[mask, "Cierre"] = nuevo_cierre
-                            st.session_state.local_records.loc[mask, "Tipo Cierre"] = nuevo_tipo_cierre
+                            st.session_state.local_records.loc[mask, "Tipo Cierre"] = final_edit_tc
                             st.session_state.local_records.loc[mask, "Monto COP$MM"] = final_edit_monto
 
                         st.success("¡Visita actualizada correctamente!")
