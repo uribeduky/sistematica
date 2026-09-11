@@ -116,7 +116,6 @@ def load_data():
         if not df_sheet.empty and "ID" in df_sheet.columns:
             df_sheet["ID"] = df_sheet["ID"].astype(str)
             
-            # Estandarización exacta según la imagen de tu Google Sheet (Columna K: Tipo_Cierre)
             col_map = {
                 "Nombre_Cliente": "Nombre Cliente",
                 "Tipo_Cliente": "Tipo Cliente",
@@ -132,7 +131,9 @@ def load_data():
             if "Tipo Cierre" not in df_sheet.columns:
                 df_sheet["Tipo Cierre"] = ""
             else:
+                # Si por error viejo hay nombres de productos en Tipo Cierre, limpiarlos
                 df_sheet["Tipo Cierre"] = df_sheet["Tipo Cierre"].fillna("").astype(str).str.strip()
+                df_sheet["Tipo Cierre"] = df_sheet["Tipo Cierre"].apply(lambda x: x if x in LISTA_TIPOS_CIERRE else "")
 
             if "Principal Producto" not in df_sheet.columns:
                 df_sheet["Principal Producto"] = ""
@@ -258,7 +259,7 @@ def create_closure_type_pie_chart(data):
     if df_cierres.empty:
         return alt.Chart(pd.DataFrame({'msg': ['Sin cierres registrados']})).mark_text().encode(text='msg')
     
-    df_cierres["Tipo Cierre"] = df_cierres["Tipo Cierre"].replace("", "Sin Clasificar")
+    df_cierres["Tipo Cierre"] = df_cierres["Tipo Cierre"].apply(lambda x: x if str(x).strip() in LISTA_TIPOS_CIERRE else "Sin Clasificar")
     
     df_pie = df_cierres["Tipo Cierre"].value_counts().reset_index()
     df_pie.columns = ["Tipo Cierre", "Count"]
@@ -569,14 +570,12 @@ if mode == "comercial":
                     visita_edit_sel = st.selectbox("Selecciona la visita que deseas actualizar:", list(dict_edit.keys()), key="sel_edit_user")
                     record_to_edit = dict_edit[visita_edit_sel]
                     
-                    # Búsqueda segura del índice actual para Principal Producto
                     curr_prod = str(record_to_edit.get('Principal Producto', '')).strip()
                     idx_prod = LISTA_PRODUCTOS.index(curr_prod) if curr_prod in LISTA_PRODUCTOS else 0
 
                     nuevo_prod = st.selectbox("Nuevo Principal Producto:", LISTA_PRODUCTOS, index=idx_prod, key=f"edit_prod_{record_to_edit['ID']}")
                     nuevo_cierre = st.selectbox("¿Ocurrió Cierre?", ["No", "Sí"], index=1 if str(record_to_edit['Cierre']).strip().lower() in ['sí', 'si'] else 0, key=f"edit_cierre_{record_to_edit['ID']}")
                     
-                    # Búsqueda segura del índice actual para Tipo de Cierre
                     curr_tc = str(record_to_edit.get('Tipo Cierre', '')).strip()
                     idx_tc = LISTA_TIPOS_CIERRE.index(curr_tc) if curr_tc in LISTA_TIPOS_CIERRE else 0
                     
