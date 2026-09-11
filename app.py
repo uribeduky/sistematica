@@ -116,11 +116,12 @@ def load_data():
         if not df_sheet.empty and "ID" in df_sheet.columns:
             df_sheet["ID"] = df_sheet["ID"].astype(str)
             
-            # Mapeo universal de nombres de columnas
+            # Estandarización universal de encabezados
             col_map = {
                 "Nombre_Cliente": "Nombre Cliente",
                 "Tipo_Cliente": "Tipo Cliente",
                 "Tipo_Cierre": "Tipo Cierre",
+                "Tipo_cierre": "Tipo Cierre",
                 "Principal_Producto": "Principal Producto",
                 "Monto_COP_MM": "Monto COP$MM",
                 "Monto": "Monto COP$MM",
@@ -130,6 +131,9 @@ def load_data():
 
             if "Tipo Cierre" not in df_sheet.columns:
                 df_sheet["Tipo Cierre"] = ""
+            else:
+                df_sheet["Tipo Cierre"] = df_sheet["Tipo Cierre"].fillna("").astype(str)
+
             if "Principal Producto" not in df_sheet.columns:
                 df_sheet["Principal Producto"] = ""
             if "Monto COP$MM" not in df_sheet.columns:
@@ -246,17 +250,16 @@ def create_closure_type_pie_chart(data):
     if data.empty or "Tipo Cierre" not in data.columns:
         return alt.Chart(pd.DataFrame({'msg': ['Sin datos de cierres']})).mark_text().encode(text='msg')
     
-    df_cierres = data[data["Cierre"].astype(str).str.strip().str.lower().isin(["sí", "si"])].copy() if "Cierre" in data.columns else data.copy()
+    df_cierres = data[data["Cierre"].astype(str).str.strip().str.lower().isin(["sí", "si"])].copy()
     
     if df_cierres.empty:
         return alt.Chart(pd.DataFrame({'msg': ['Sin cierres registrados']})).mark_text().encode(text='msg')
     
+    # Rellenar vacíos si hay cierres marcados como Sí pero sin tipo explícito
+    df_cierres["Tipo Cierre"] = df_cierres["Tipo Cierre"].replace("", "Sin Clasificar")
+    
     df_pie = df_cierres["Tipo Cierre"].value_counts().reset_index()
     df_pie.columns = ["Tipo Cierre", "Count"]
-    df_pie = df_pie[df_pie["Tipo Cierre"].astype(str).str.strip() != ""]
-    
-    if df_pie.empty:
-        return alt.Chart(pd.DataFrame({'msg': ['Sin cierres clasificados']})).mark_text().encode(text='msg')
     
     total_count = df_pie["Count"].sum()
     df_pie["Percentage"] = (df_pie["Count"] / total_count * 100).round(1)
@@ -264,7 +267,7 @@ def create_closure_type_pie_chart(data):
 
     chart = alt.Chart(df_pie).mark_arc(outerRadius=98, innerRadius=45).encode(
         theta=alt.Theta("Count:Q", stack=True),
-        color=alt.Color("Leyenda:N", scale=alt.Scale(range=['#2E7D32', '#7C3AED', '#0284C7']), legend=alt.Legend(title="Tipo de Cierre", orient="right")),
+        color=alt.Color("Leyenda:N", scale=alt.Scale(range=['#2E7D32', '#7C3AED', '#0284C7', '#94A3B8']), legend=alt.Legend(title="Tipo de Cierre", orient="right")),
         tooltip=["Tipo Cierre", "Count", alt.Tooltip("Percentage:Q", format=".1f", title="Porcentaje (%)")]
     ).properties(height=280)
 
