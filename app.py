@@ -116,7 +116,7 @@ def load_data():
         if not df_sheet.empty and "ID" in df_sheet.columns:
             df_sheet["ID"] = df_sheet["ID"].astype(str)
             
-            # Estandarización universal de encabezados
+            # Estandarización exacta según la imagen de tu Google Sheet (Columna K: Tipo_Cierre)
             col_map = {
                 "Nombre_Cliente": "Nombre Cliente",
                 "Tipo_Cliente": "Tipo Cliente",
@@ -132,10 +132,13 @@ def load_data():
             if "Tipo Cierre" not in df_sheet.columns:
                 df_sheet["Tipo Cierre"] = ""
             else:
-                df_sheet["Tipo Cierre"] = df_sheet["Tipo Cierre"].fillna("").astype(str)
+                df_sheet["Tipo Cierre"] = df_sheet["Tipo Cierre"].fillna("").astype(str).str.strip()
 
             if "Principal Producto" not in df_sheet.columns:
                 df_sheet["Principal Producto"] = ""
+            else:
+                df_sheet["Principal Producto"] = df_sheet["Principal Producto"].fillna("").astype(str).str.strip()
+
             if "Monto COP$MM" not in df_sheet.columns:
                 df_sheet["Monto COP$MM"] = 0
             else:
@@ -255,7 +258,6 @@ def create_closure_type_pie_chart(data):
     if df_cierres.empty:
         return alt.Chart(pd.DataFrame({'msg': ['Sin cierres registrados']})).mark_text().encode(text='msg')
     
-    # Rellenar vacíos si hay cierres marcados como Sí pero sin tipo explícito
     df_cierres["Tipo Cierre"] = df_cierres["Tipo Cierre"].replace("", "Sin Clasificar")
     
     df_pie = df_cierres["Tipo Cierre"].value_counts().reset_index()
@@ -560,27 +562,29 @@ if mode == "comercial":
         with col_edit_exp:
             with st.expander("✏️ Actualizar una Visita Registrada"):
                 dict_edit = {
-                    f"{r['Fecha']} - {r['Nombre Cliente']} (Producto: {r.get('Principal Producto', '') or 'Sin definir'})": r
+                    f"{r['Fecha']} - {r['Nombre Cliente']} (ID: {r['ID']})": r
                     for _, r in df_display.iterrows()
                 }
                 if dict_edit:
                     visita_edit_sel = st.selectbox("Selecciona la visita que deseas actualizar:", list(dict_edit.keys()), key="sel_edit_user")
                     record_to_edit = dict_edit[visita_edit_sel]
                     
-                    curr_prod = str(record_to_edit.get('Principal Producto', ''))
+                    # Búsqueda segura del índice actual para Principal Producto
+                    curr_prod = str(record_to_edit.get('Principal Producto', '')).strip()
                     idx_prod = LISTA_PRODUCTOS.index(curr_prod) if curr_prod in LISTA_PRODUCTOS else 0
 
-                    nuevo_prod = st.selectbox("Nuevo Principal Producto:", LISTA_PRODUCTOS, index=idx_prod, key="edit_prod")
-                    nuevo_cierre = st.selectbox("¿Ocurrió Cierre?", ["No", "Sí"], index=1 if str(record_to_edit['Cierre']).strip().lower() in ['sí', 'si'] else 0, key="edit_cierre")
+                    nuevo_prod = st.selectbox("Nuevo Principal Producto:", LISTA_PRODUCTOS, index=idx_prod, key=f"edit_prod_{record_to_edit['ID']}")
+                    nuevo_cierre = st.selectbox("¿Ocurrió Cierre?", ["No", "Sí"], index=1 if str(record_to_edit['Cierre']).strip().lower() in ['sí', 'si'] else 0, key=f"edit_cierre_{record_to_edit['ID']}")
                     
-                    curr_tc = str(record_to_edit.get('Tipo Cierre', ''))
+                    # Búsqueda segura del índice actual para Tipo de Cierre
+                    curr_tc = str(record_to_edit.get('Tipo Cierre', '')).strip()
                     idx_tc = LISTA_TIPOS_CIERRE.index(curr_tc) if curr_tc in LISTA_TIPOS_CIERRE else 0
                     
                     nuevo_tipo_cierre = ""
                     if nuevo_cierre == "Sí":
-                        nuevo_tipo_cierre = st.selectbox("🎯 Tipo de Cierre Comercial:", LISTA_TIPOS_CIERRE, index=idx_tc, key="edit_tc", help="Selecciona si el cierre fue por cliente Nuevo, Cross-sell o Up-sell.")
+                        nuevo_tipo_cierre = st.selectbox("🎯 Tipo de Cierre Comercial:", LISTA_TIPOS_CIERRE, index=idx_tc, key=f"edit_tc_{record_to_edit['ID']}", help="Selecciona si el cierre fue por cliente Nuevo, Cross-sell o Up-sell.")
                     
-                    nuevo_monto = st.number_input("💵 Monto COP $MM:", min_value=0, value=int(record_to_edit.get('Monto COP$MM', 0)), step=1, key="edit_monto")
+                    nuevo_monto = st.number_input("💵 Monto COP $MM:", min_value=0, value=int(record_to_edit.get('Monto COP$MM', 0)), step=1, key=f"edit_monto_{record_to_edit['ID']}")
                     
                     if st.button("🔄 Guardar Cambios en la Visita", key="btn_save_edit"):
                         final_edit_monto = int(nuevo_monto) if nuevo_cierre == "Sí" else 0
