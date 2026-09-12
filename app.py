@@ -44,6 +44,7 @@ LISTA_DIRECTORES = sorted([
     "Karen Cortés",
     "Laura Gómez",
     "María Camila León",
+    "María Paula Jaramillo",
     "Nicolás Quintero"
 ])
 
@@ -79,7 +80,7 @@ if "config" not in st.session_state:
     st.session_state.config = DEFAULT_CONFIG
 
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1c_3WF_RyzgtsHyr6MlPnVGYFvBfjveUIKCe6RRQdAws/export?format=csv"
-WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwG7PDTJydDl-2AVL3PkSlNVvAipAVUhS3LKu2YEOHYRJQ22nsr0bGXZy7Rnz-5sG1_Sg/exec"
+WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxe5DtYRWvWtFCNvnJTXdtU45Un2GYcqkcUVwszoEr_vsisalLRZBhLwobTwu6zkkiDpg/exec"
 
 if "local_records" not in st.session_state:
     st.session_state.local_records = pd.DataFrame(columns=[
@@ -131,7 +132,6 @@ def load_data():
             if "Tipo Cierre" not in df_sheet.columns:
                 df_sheet["Tipo Cierre"] = ""
             else:
-                # Si por error viejo hay nombres de productos en Tipo Cierre, limpiarlos
                 df_sheet["Tipo Cierre"] = df_sheet["Tipo Cierre"].fillna("").astype(str).str.strip()
                 df_sheet["Tipo Cierre"] = df_sheet["Tipo Cierre"].apply(lambda x: x if x in LISTA_TIPOS_CIERRE else "")
 
