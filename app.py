@@ -133,7 +133,6 @@ def load_data():
                 df_sheet["Tipo Cierre"] = ""
             else:
                 df_sheet["Tipo Cierre"] = df_sheet["Tipo Cierre"].fillna("").astype(str).str.strip()
-                df_sheet["Tipo Cierre"] = df_sheet["Tipo Cierre"].apply(lambda x: x if x in LISTA_TIPOS_CIERRE else "")
 
             if "Principal Producto" not in df_sheet.columns:
                 df_sheet["Principal Producto"] = ""
@@ -259,7 +258,7 @@ def create_closure_type_pie_chart(data):
     if df_cierres.empty:
         return alt.Chart(pd.DataFrame({'msg': ['Sin cierres registrados']})).mark_text().encode(text='msg')
     
-    df_cierres["Tipo Cierre"] = df_cierres["Tipo Cierre"].apply(lambda x: x if str(x).strip() in LISTA_TIPOS_CIERRE else "Sin Clasificar")
+    df_cierres["Tipo Cierre"] = df_cierres["Tipo Cierre"].apply(lambda x: str(x).strip() if str(x).strip() in LISTA_TIPOS_CIERRE else "Sin Clasificar")
     
     df_pie = df_cierres["Tipo Cierre"].value_counts().reset_index()
     df_pie.columns = ["Tipo Cierre", "Count"]
@@ -576,9 +575,14 @@ if mode == "comercial":
                     nuevo_prod = st.selectbox("Nuevo Principal Producto:", LISTA_PRODUCTOS, index=idx_prod, key=f"edit_prod_{record_to_edit['ID']}")
                     nuevo_cierre = st.selectbox("¿Ocurrió Cierre?", ["No", "Sí"], index=1 if str(record_to_edit['Cierre']).strip().lower() in ['sí', 'si'] else 0, key=f"edit_cierre_{record_to_edit['ID']}")
                     
-                    curr_tc = str(record_to_edit.get('Tipo Cierre', '')).strip()
-                    idx_tc = LISTA_TIPOS_CIERRE.index(curr_tc) if curr_tc in LISTA_TIPOS_CIERRE else 0
-                    
+                    # Búsqueda limpia e insensible a mayúsculas/espacios para el índice del Tipo de Cierre
+                    curr_tc = str(record_to_edit.get('Tipo Cierre', '')).strip().lower()
+                    idx_tc = 0
+                    for i_tc, tc_opt in enumerate(LISTA_TIPOS_CIERRE):
+                        if tc_opt.lower() == curr_tc:
+                            idx_tc = i_tc
+                            break
+
                     nuevo_tipo_cierre = ""
                     if nuevo_cierre == "Sí":
                         nuevo_tipo_cierre = st.selectbox("🎯 Tipo de Cierre Comercial:", LISTA_TIPOS_CIERRE, index=idx_tc, key=f"edit_tc_{record_to_edit['ID']}", help="Selecciona si el cierre fue por cliente Nuevo, Cross-sell o Up-sell.")
@@ -603,12 +607,21 @@ if mode == "comercial":
                         }
                         send_to_google_sheet(edit_payload)
                         
-                        mask = st.session_state.local_records["ID"].astype(str) == str(record_to_edit['ID'])
-                        if mask.any():
-                            st.session_state.local_records.loc[mask, "Principal Producto"] = nuevo_prod
-                            st.session_state.local_records.loc[mask, "Cierre"] = nuevo_cierre
-                            st.session_state.local_records.loc[mask, "Tipo Cierre"] = final_edit_tc
-                            st.session_state.local_records.loc[mask, "Monto COP$MM"] = final_edit_monto
+                        # Actualización simultánea en session_state con nuevo registro completo
+                        updated_row = pd.DataFrame([{
+                            "ID": str(record_to_edit['ID']),
+                            "Fecha": str(record_to_edit['Fecha']),
+                            "Mes_Año": str(record_to_edit['Mes_Año']),
+                            "Director": selected_director,
+                            "Nombre Cliente": record_to_edit['Nombre Cliente'],
+                            "Tipo Cliente": record_to_edit['Tipo Cliente'],
+                            "Canal": record_to_edit['Canal'],
+                            "Cierre": nuevo_cierre,
+                            "Tipo Cierre": final_edit_tc,
+                            "Principal Producto": nuevo_prod,
+                            "Monto COP$MM": final_edit_monto
+                        }])
+                        st.session_state.local_records = pd.concat([st.session_state.local_records, updated_row], ignore_index=True)
 
                         st.success("¡Visita actualizada correctamente!")
                         st.rerun()
