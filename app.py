@@ -551,7 +551,7 @@ if mode == "comercial":
         st.divider()
         st.subheader("📋 Mis Visitas Registradas")
 
-        cols_user_view = ["ID", "Fecha", "Nombre Cliente", "Tipo Cliente", "Canal", "Principal Producto", "Cierre", "Tipo Cierre", "Monto COP$MM"]
+        cols_user_view = ["ID", "Fecha", "Mes_Año", "Nombre Cliente", "Tipo Cliente", "Canal", "Principal Producto", "Cierre", "Tipo Cierre", "Monto COP$MM"]
         df_display = user_records_month[[c for c in cols_user_view if c in user_records_month.columns]].copy()
         
         cols_show_u = ["Fecha", "Nombre Cliente", "Tipo Cliente", "Canal", "Principal Producto", "Cierre", "Tipo Cierre", "Monto COP$MM"]
@@ -610,14 +610,20 @@ if mode == "comercial":
                         if not st.session_state.local_records.empty:
                             st.session_state.local_records = st.session_state.local_records[st.session_state.local_records["ID"].astype(str) != rec_id]
 
+                        rec_fecha = str(record_to_edit.get('Fecha', ''))
+                        rec_mes_ano = str(record_to_edit.get('Mes_Año', rec_fecha[:7] if len(rec_fecha) >= 7 else ''))
+                        rec_nombre = str(record_to_edit.get('Nombre Cliente', ''))
+                        rec_tipo_cli = str(record_to_edit.get('Tipo Cliente', ''))
+                        rec_canal = str(record_to_edit.get('Canal', ''))
+
                         updated_row = pd.DataFrame([{
                             "ID": rec_id,
-                            "Fecha": str(record_to_edit['Fecha']),
-                            "Mes_Año": str(record_to_edit['Mes_Año']),
+                            "Fecha": rec_fecha,
+                            "Mes_Año": rec_mes_ano,
                             "Director": selected_director,
-                            "Nombre Cliente": record_to_edit['Nombre Cliente'],
-                            "Tipo Cliente": record_to_edit['Tipo Cliente'],
-                            "Canal": record_to_edit['Canal'],
+                            "Nombre Cliente": rec_nombre,
+                            "Tipo Cliente": rec_tipo_cli,
+                            "Canal": rec_canal,
                             "Cierre": nuevo_cierre,
                             "Tipo Cierre": final_edit_tc,
                             "Principal Producto": nuevo_prod,
