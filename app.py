@@ -129,6 +129,9 @@ def load_data():
             }
             df_sheet.rename(columns=col_map, inplace=True)
 
+            if "Director" in df_sheet.columns:
+                df_sheet["Director"] = df_sheet["Director"].fillna("").astype(str).str.strip()
+
             if "Tipo Cierre" not in df_sheet.columns:
                 df_sheet["Tipo Cierre"] = ""
             else:
@@ -437,7 +440,7 @@ if mode == "comercial":
     
     st.subheader(f"📌 Resumen Individual - {selected_director}")
     
-    user_records_all = records_df[records_df["Director"] == selected_director] if not records_df.empty else pd.DataFrame()
+    user_records_all = records_df[records_df["Director"].astype(str).str.strip() == str(selected_director).strip()] if not records_df.empty else pd.DataFrame()
     
     if not user_records_all.empty:
         meses_disponibles = sorted(user_records_all["Mes_Año"].astype(str).unique(), reverse=True)
@@ -597,13 +600,13 @@ if mode == "comercial":
                             "Cierre": nuevo_cierre,
                             "Tipo_Cierre": final_edit_tc,
                             "Tipo Cierre": final_edit_tc,
+                            "Tipo_cierre": final_edit_tc,
                             "Monto_COP_MM": final_edit_monto,
                             "Monto COP$MM": final_edit_monto,
                             "Monto": final_edit_monto
                         }
                         send_to_google_sheet(edit_payload)
                         
-                        # Reemplazo directo en la estructura en vivo de st.session_state
                         if not st.session_state.local_records.empty:
                             st.session_state.local_records = st.session_state.local_records[st.session_state.local_records["ID"].astype(str) != rec_id]
 
@@ -672,7 +675,7 @@ elif mode == "lider":
             
             records_month = records_df[records_df["Mes_Año"] == mes_global]
             if dir_global_filter != "Todos":
-                records_month = records_month[records_month["Director"] == dir_global_filter]
+                records_month = records_month[records_month["Director"].astype(str).str.strip() == str(dir_global_filter).strip()]
             if prod_global_filter != "Todos":
                 records_month = records_month[records_month["Principal Producto"] == prod_global_filter]
             if cierre_global_filter != "Todos":
@@ -815,7 +818,7 @@ elif mode == "lider":
             if m_selected != "Todos":
                 df_bitacora = df_bitacora[df_bitacora["Mes_Año"] == m_selected]
             if d_selected != "Todos":
-                df_bitacora = df_bitacora[df_bitacora["Director"] == d_selected]
+                df_bitacora = df_bitacora[df_bitacora["Director"].astype(str).str.strip() == str(d_selected).strip()]
             if p_selected != "Todos":
                 df_bitacora = df_bitacora[df_bitacora["Principal Producto"] == p_selected]
             if c_selected != "Todos":
