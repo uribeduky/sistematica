@@ -568,34 +568,30 @@ if mode == "comercial":
                 if dict_edit:
                     visita_edit_sel = st.selectbox("Selecciona la visita que deseas actualizar:", list(dict_edit.keys()), key="sel_edit_user")
                     record_to_edit = dict_edit[visita_edit_sel]
-                    
+                    rec_id = str(record_to_edit['ID'])
+
                     curr_prod = str(record_to_edit.get('Principal Producto', '')).strip()
                     idx_prod = LISTA_PRODUCTOS.index(curr_prod) if curr_prod in LISTA_PRODUCTOS else 0
 
-                    nuevo_prod = st.selectbox("Nuevo Principal Producto:", LISTA_PRODUCTOS, index=idx_prod, key=f"edit_prod_{record_to_edit['ID']}")
-                    nuevo_cierre = st.selectbox("¿Ocurrió Cierre?", ["No", "Sí"], index=1 if str(record_to_edit['Cierre']).strip().lower() in ['sí', 'si'] else 0, key=f"edit_cierre_{record_to_edit['ID']}")
+                    nuevo_prod = st.selectbox("Nuevo Principal Producto:", LISTA_PRODUCTOS, index=idx_prod, key=f"edit_prod_{rec_id}")
+                    nuevo_cierre = st.selectbox("¿Ocurrió Cierre?", ["No", "Sí"], index=1 if str(record_to_edit['Cierre']).strip().lower() in ['sí', 'si'] else 0, key=f"edit_cierre_{rec_id}")
                     
-                    # Búsqueda limpia e insensible a mayúsculas/espacios para el índice del Tipo de Cierre
-                    curr_tc = str(record_to_edit.get('Tipo Cierre', '')).strip().lower()
-                    idx_tc = 0
-                    for i_tc, tc_opt in enumerate(LISTA_TIPOS_CIERRE):
-                        if tc_opt.lower() == curr_tc:
-                            idx_tc = i_tc
-                            break
+                    curr_tc = str(record_to_edit.get('Tipo Cierre', '')).strip()
+                    idx_tc = LISTA_TIPOS_CIERRE.index(curr_tc) if curr_tc in LISTA_TIPOS_CIERRE else 0
 
                     nuevo_tipo_cierre = ""
                     if nuevo_cierre == "Sí":
-                        nuevo_tipo_cierre = st.selectbox("🎯 Tipo de Cierre Comercial:", LISTA_TIPOS_CIERRE, index=idx_tc, key=f"edit_tc_{record_to_edit['ID']}", help="Selecciona si el cierre fue por cliente Nuevo, Cross-sell o Up-sell.")
+                        nuevo_tipo_cierre = st.selectbox("🎯 Tipo de Cierre Comercial:", LISTA_TIPOS_CIERRE, index=idx_tc, key=f"edit_tc_{rec_id}", help="Selecciona si el cierre fue por cliente Nuevo, Cross-sell o Up-sell.")
                     
-                    nuevo_monto = st.number_input("💵 Monto COP $MM:", min_value=0, value=int(record_to_edit.get('Monto COP$MM', 0)), step=1, key=f"edit_monto_{record_to_edit['ID']}")
+                    nuevo_monto = st.number_input("💵 Monto COP $MM:", min_value=0, value=int(record_to_edit.get('Monto COP$MM', 0)), step=1, key=f"edit_monto_{rec_id}")
                     
-                    if st.button("🔄 Guardar Cambios en la Visita", key="btn_save_edit"):
+                    if st.button("🔄 Guardar Cambios en la Visita", key=f"btn_save_edit_{rec_id}"):
                         final_edit_monto = int(nuevo_monto) if nuevo_cierre == "Sí" else 0
-                        final_edit_tc = nuevo_tipo_cierre if nuevo_cierre == "Sí" else ""
+                        final_edit_tc = str(nuevo_tipo_cierre).strip() if nuevo_cierre == "Sí" else ""
                         
                         edit_payload = {
                             "action": "update",
-                            "ID": str(record_to_edit['ID']),
+                            "ID": rec_id,
                             "Principal_Producto": nuevo_prod,
                             "Principal Producto": nuevo_prod,
                             "Cierre": nuevo_cierre,
@@ -607,9 +603,12 @@ if mode == "comercial":
                         }
                         send_to_google_sheet(edit_payload)
                         
-                        # Actualización simultánea en session_state con nuevo registro completo
+                        # Reemplazo directo en la estructura en vivo de st.session_state
+                        if not st.session_state.local_records.empty:
+                            st.session_state.local_records = st.session_state.local_records[st.session_state.local_records["ID"].astype(str) != rec_id]
+
                         updated_row = pd.DataFrame([{
-                            "ID": str(record_to_edit['ID']),
+                            "ID": rec_id,
                             "Fecha": str(record_to_edit['Fecha']),
                             "Mes_Año": str(record_to_edit['Mes_Año']),
                             "Director": selected_director,
