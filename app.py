@@ -694,7 +694,7 @@ elif mode == "lider":
             meses_globales = sorted(records_df["Mes_Año"].astype(str).unique(), reverse=True)
             col_mes, col_dir_filter, col_prod_filter, col_est_filter, col_cierre_filter = st.columns([1, 1, 1, 1, 1])
             with col_mes:
-                mes_global = st.selectbox("📅 Selecciona el Mes Principal:", meses_globales)
+                mes_global = st.selectbox("📅 Selecciona el Mes Principal:", ["Todos"] + meses_globales)
             with col_dir_filter:
                 dir_global_filter = st.selectbox("👤 Filtrar por Director:", ["Todos"] + LISTA_DIRECTORES)
             with col_prod_filter:
@@ -704,7 +704,9 @@ elif mode == "lider":
             with col_cierre_filter:
                 cierre_global_filter = st.selectbox("🤝 Filtrar por Cierre:", ["Todos", "Sí", "No"])
             
-            records_month = records_df[records_df["Mes_Año"] == mes_global]
+            records_month = records_df.copy()
+            if mes_global != "Todos":
+                records_month = records_month[records_month["Mes_Año"] == mes_global]
             if dir_global_filter != "Todos":
                 records_month = records_month[records_month["Director"].astype(str).str.strip() == str(dir_global_filter).strip()]
             if prod_global_filter != "Todos":
@@ -721,7 +723,7 @@ elif mode == "lider":
                 col_a.metric("Total Visitas Equipo", int(global_summary["Visitas_Totales"].sum()))
                 col_b.metric("Puntos Promedio Esfuerzo", f"{global_summary['Puntos_Esfuerzo'].mean():.1f}")
                 col_c.metric("IEP Promedio Equipo", f"{global_summary['IEP'].mean()*100:.1f}%")
-                col_d.metric("Cierres Totales Mes", int(global_summary["Cierres"].sum()))
+                col_d.metric("Cierres Totales", int(global_summary["Cierres"].sum()))
                 col_e.metric("Pipeline Ponderado Total", f"{format_cop_int(global_summary['Total_Pipeline_Ponderado'].sum())} MM")
 
                 st.divider()
@@ -776,7 +778,8 @@ elif mode == "lider":
                     st.altair_chart(chart_weekday_global, use_container_width=True)
 
                 st.divider()
-                st.subheader(f"📋 Rendimiento del Equipo - Período {mes_global}")
+                titulo_periodo = "Consolidado Histórico (Todos los Meses)" if mes_global == "Todos" else f"Período {mes_global}"
+                st.subheader(f"📋 Rendimiento del Equipo - {titulo_periodo}")
 
                 display_df = global_summary[[
                     "Director", "Visitas_Totales", "Visitas_Presenciales", "Visitas_Virtuales",
